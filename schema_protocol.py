@@ -3,27 +3,7 @@ from typing import Protocol
 
 class NNSchemaProtocol(Protocol):
 
-    __init(self):
+    def __init__(self):
         """ Docs for testing YAPF """
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
-        
         pass
