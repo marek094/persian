@@ -1,0 +1,170 @@
+from sys import flags
+from typing import Dict, Protocol, List
+from argparse import ArgumentParser
+
+
+class Schemable(Protocol):
+    """
+    """
+
+    @staticmethod
+    def list_hparams() -> List[dict]:
+        """
+            TODO: format specification
+        """
+        ...
+
+    flags = None
+    metrics = {}
+
+    def __init__(self, flags={}) -> None:
+        ...
+
+    def prepare_dataset(self, set_name) -> None:
+        ...
+
+    def prepare_model(self) -> None:
+        ...
+
+    def prepare_criterium(self) -> None:
+        ...
+
+    def epoch_range(self) -> range:
+        ...
+
+    def run_batches(self, set_name) -> None:
+        ...
+
+    def run_inference(self, input):  # -> result
+        ...
+
+    def update_infoboard(self) -> None:
+        ...
+
+    def pack_model_params(self):  # -> packed_model
+        ...
+
+    def load_model_params(self) -> None:
+        ...
+
+    # directly implemented bellow in Schema class
+    def metrics_report(self, set_name) -> str:
+        ...
+
+    def as_hstr(self) -> str:
+        ...
+
+    @classmethod
+    def short_hparams(Cls) -> dict:
+        ...
+
+    @classmethod
+    def build_parser(Cls) -> ArgumentParser:
+        ...
+
+    @classmethod
+    def from_str(Cls, full_hstr) -> Protocol:
+        ...
+
+    @classmethod
+    def from_args(Cls, args) -> Protocol:
+        ...
+
+
+class Schema(Schemable):
+
+    @staticmethod
+    def list_hparams() -> List[dict]:
+        return []
+
+    @classmethod
+    def short_hparams(Cls):
+        """
+            Deterministic if hparams are added in the end
+        """
+        alphabet = "".join(chr(v) for v in range(ord('A'), ord('Z') + 1))
+        alphabet += "".join(chr(v) for v in range(ord('a'), ord('z') + 1))
+
+        shorts, used = {}, {}
+
+        def to_short(name, type, default):
+            for sh in name + alphabet:
+                if sh not in used and sh in alphabet:
+                    shorts[name] = sh
+                    used[sh] = True
+                    return
+
+            shorts[name] = '0'
+
+        for p in Cls.list_hparams():
+            to_short(**p)
+        return shorts
+
+    def as_hstr(self):
+        shorts = self.short_hparams()
+
+        def to_elem(name, val):
+            assert name in shorts
+            short = shorts[name]
+            if type(val) == float:
+                val = f"{val:5f}"
+            return f"{short}{val}"
+
+        hstr = ",".join(to_elem(*it) for it in self.flags.items())
+        cls = type(self).__name__
+        return f"{cls}_{hstr}"
+
+    @classmethod
+    def build_parser(Cls, **kwargs) -> ArgumentParser:
+        shorts = Cls.short_hparams()
+        parser = ArgumentParser(**kwargs)
+        for param in Cls.list_hparams():
+            name = param.pop('name', "")
+            names = [f'-{shorts[name]}', f'--{name}']
+            parser.add_argument(*names, **param)
+        return parser
+
+    @classmethod
+    def from_args(Cls, args):
+        argsd = args.__dict__
+        flags = {}
+
+        def to_flag(name, type, default):
+            if name in argsd:
+                flags[name] = argsd[name]
+
+        for p in Cls.list_hparams():
+            to_flag(**p)
+        return Cls(flags)
+
+    @classmethod
+    def from_hstr(Cls, full_hstr):
+        hparams = Cls.list_hparams()
+        shorts = Cls.short_hparams()
+        inv_shorts = {v: k for k, v in shorts.items()}
+        ps = full_hstr.split('_')
+        hstr = ps[1] if len(ps) > 1 else ps[0]
+        flags = {}
+        for item in hstr.split(','):
+            k, val = item[:1], item[1:]
+            name = inv_shorts[k]
+            type_ = next(x['type'] for x in hparams if x['name'] == name)
+            flags[name] = type_(val)
+            # print(name, type_(val), type_, val, '#')
+        return Cls(flags)
+
+    def metrics_report(self, set_name):
+        return ", ".join(
+            f'{k}: {v:f}' for k, v in self.metrics[set_name].items())
+
+    def __init__(self, flags={}):
+        super().__init__(flags)
+
+        # create flags
+        def to_flag(name, type, default):
+            if name in flags:
+                return name, type(flags[name])
+            return name, default
+
+        hparams = self.list_hparams()
+        self.flags = dict(to_flag(**p) for p in hparams)
