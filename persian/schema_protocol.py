@@ -1,6 +1,7 @@
 from sys import flags
 from typing import Dict, Protocol, List
 from argparse import ArgumentParser
+from numpy import arange
 
 
 class Schemable(Protocol):
@@ -70,6 +71,10 @@ class Schemable(Protocol):
     def from_args(Cls, args) -> Protocol:
         ...
 
+    @classmethod
+    def hgrid_gen(Cls) -> list:
+        ...
+
 
 class Schema(Schemable):
 
@@ -87,7 +92,7 @@ class Schema(Schemable):
 
         shorts, used = {}, {}
 
-        def to_short(name, type, default):
+        def to_short(name, **_):
             for sh in name + alphabet:
                 if sh not in used and sh in alphabet:
                     shorts[name] = sh
@@ -119,6 +124,9 @@ class Schema(Schemable):
         shorts = Cls.short_hparams()
         parser = ArgumentParser(**kwargs)
         for param in Cls.list_hparams():
+            param['help'] = ','.join([
+                f'{d}: {param.pop(d)}' for d in ['range', 'help'] if d in param
+            ])
             name = param.pop('name', "")
             names = [f'-{shorts[name]}', f'--{name}']
             parser.add_argument(*names, **param)
@@ -129,7 +137,7 @@ class Schema(Schemable):
         argsd = args.__dict__
         flags = {}
 
-        def to_flag(name, type, default):
+        def to_flag(name, **_):
             if name in argsd:
                 flags[name] = argsd[name]
 
@@ -153,6 +161,19 @@ class Schema(Schemable):
             # print(name, type_(val), type_, val, '#')
         return Cls(flags)
 
+    @classmethod
+    def hgrid_gen(Cls):
+        lazy = [(param['name'], arange(
+            *param['range']) if 'range' in param else [param['default']])
+                for param in reversed(Cls.list_hparams())]
+
+        def gen(head, *tail):
+            for flags in (gen(*tail) if len(tail) > 0 else [{}]):
+                for value in head[1]:
+                    yield {head[0]: value, **flags}
+
+        return gen(*lazy)
+
     def metrics_report(self, set_name):
         return ", ".join(
             f'{k}: {v:f}' for k, v in self.metrics[set_name].items())
@@ -161,7 +182,7 @@ class Schema(Schemable):
         super().__init__(flags)
 
         # create flags
-        def to_flag(name, type, default):
+        def to_flag(name, type, default, **_):
             if name in flags:
                 return name, type(flags[name])
             return name, default
