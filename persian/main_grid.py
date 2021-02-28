@@ -32,9 +32,12 @@ if __name__ == "__main__":
         flags['logdir'] = logdir.parent / f"{logdir.name}_progress_{timestamp}"
 
         model = DynSchema(flags)
-        saved_torch_training(model)
+        hstr = model.as_hstr()
+        if len(list(logdir.glob(f'{hstr}_*'))) == 0:
+            saved_torch_training(model)
 
         # move content of flags[logdir] into logdir
+        logdir.mkdir(exist_ok=True)
         for p in flags['logdir'].glob('*'):
             p.rename(logdir / p.name)
         flags['logdir'].rmdir()
