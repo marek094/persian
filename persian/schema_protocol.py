@@ -1,7 +1,12 @@
-from sys import flags
-from typing import Dict, Protocol, List
+import sys
+from typing import List
 from argparse import ArgumentParser
 from numpy import arange
+
+if sys.version_info.minor >= 9:
+    from typing import Protocol
+else:
+    Protocol = object
 
 
 class Schemable(Protocol):
