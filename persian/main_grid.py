@@ -27,17 +27,14 @@ if __name__ == "__main__":
 
     hgg = DynSchema.hgrid_gen()
     for flags in partitioned(hgg, args.nth, args.ofn):
-        # save and change logdir
-        logdir, timestamp = flags['logdir'], round(time.time())
-        flags['logdir'] = logdir.parent / f"{logdir.name}_progress_{timestamp}"
+        logdir_final = flags['logdir'].parent / f"{flags['logdir'].name}_final"
+        logdir_final.mkdir(exist_ok=True)
 
         model = DynSchema(flags)
         hstr = model.as_hstr()
-        if len(list(logdir.glob(f'{hstr}_*'))) == 0:
+        if len(list(logdir_final.glob(f'{hstr}_*'))) == 0:
             saved_torch_training(model)
 
-        # move content of flags[logdir] into logdir
-        logdir.mkdir(exist_ok=True)
-        for p in flags['logdir'].glob('*'):
-            p.rename(logdir / p.name)
-        flags['logdir'].rmdir()
+        # move relevant content of flags[logdir] into logdir_final
+        for p in flags['logdir'].glob(f'{hstr}_*'):
+            p.rename(logdir_final / p.name)
