@@ -56,7 +56,7 @@ def saved_torch_training(model: Schemable,
 
         params = model.pack_model_params()
 
-        path = model.flags['logdir'] / f'{model.as_hstr()}_{ep}.pt'
+        path = model.flags['logdir'] / f'{model.as_hstr()}_{ep:04}.pt'
         T.save(params, path)
 
         for k in [kTRAIN, kVALID]:
