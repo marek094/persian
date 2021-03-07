@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 import numpy as np
 from pathlib import Path
 from gtda.homology import VietorisRipsPersistence
+from numpy.lib import save
 
 from numpy.lib.index_tricks import AxisConcatenator
 
@@ -55,12 +56,22 @@ def persistet_diagram(clouds, n_jobs=1, dimensions=(0, 1, 2)):
     return dgms
 
 
+def save_diagrams(file_path, dgms):
+    np.savez(file_path, dgms=dgms)
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--files', nargs='*', type=Path, default=[])
     parser.add_argument('--jobs', '-j', type=int, default=8)
+    parser.add_argument('--count', type=int, default=5)
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--verbose', '-v', action='store_true')
     args = parser.parse_args()
 
-    for file_path in args.files:
-        clouds = layerwise_cloud(file_path, n_samples=256, count=4)
-        r = persistet_diagram(clouds, n_jobs=args.jobs)
+    for i, file_path in enumerate(args.files):
+        if args.verbose:
+            print(f'processing {i}/{len(args.files)-1}')
+        clouds = layerwise_cloud(file_path, n_samples=256, count=5, seed=0)
+        dgms = persistet_diagram(clouds, n_jobs=args.jobs)
+        save_diagrams(file_path.parent / f'{file_path.stem}_dgms.npz', dgms)
