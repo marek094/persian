@@ -95,7 +95,7 @@ class Schema(Schemable):
         alphabet = "".join(chr(v) for v in range(ord('A'), ord('Z') + 1))
         alphabet += "".join(chr(v) for v in range(ord('a'), ord('z') + 1))
 
-        shorts, used = {}, {}
+        shorts, used = {}, {'h': 0}
 
         def to_short(name, **_):
             for sh in name + alphabet:
