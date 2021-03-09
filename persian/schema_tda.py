@@ -34,24 +34,26 @@ class TdaSchema(Schema):
 
             if dgm_count is None:
                 if len(self.files) > 0:
-                    dgms = DgmDataset._open(self.files[0])
+                    dgms = TdaSchema.DgmDataset._open(self.files[0])
                     self._cache = (0, dgms)
                     dgm_count = len(dgms)
+                else:
+                    dgm_count = 0
 
             self.dgm_count = dgm_count
             self.label_callback = label_callback
 
         def __len__(self):
-            return len(self.files * self.dgm_count)
+            return len(self.files) * self.dgm_count
 
         def __getitem__(self, ix):
-            i, j = ix / self.dgm_count, ix % self.dgm_count
+            i, j = ix // self.dgm_count, ix % self.dgm_count
             fpath = self.files[i]
             if self._cache[0] == i:
                 dgm = self._cache[1][j]
             else:
                 assert fpath.exists()
-                dgm = DgmDataset._open(fpath)[j]
+                dgm = TdaSchema.DgmDataset._open(fpath)[j]
                 self._cache = (i, dgm)
 
             if self.transform is None:
@@ -65,6 +67,7 @@ class TdaSchema(Schema):
     def list_hparams():
         return Schema.list_hparams() + [
             dict(name='logdir', type=Path, default=Path() / 'tda'),
+            dict(name='seed', type=int, default=0)
         ]
 
     def __init__(self, flags={}) -> None:
