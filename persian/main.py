@@ -14,7 +14,7 @@ if __name__ == "__main__":
     lib = 'persian' if args_main.persian else 'schemas'
 
     *mds, cls = args_main.schema.split('.')
-    DynSchema = dynamic_import('.'.join[lib] + mds), cls)
+    DynSchema = dynamic_import('.'.join([lib] + mds), cls)
 
     parser = DynSchema.build_parser()
     args = parser.parse_args(args=unknown)
