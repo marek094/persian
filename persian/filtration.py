@@ -71,7 +71,14 @@ if __name__ == "__main__":
 
     for i, file_path in enumerate(args.files):
         if args.verbose:
-            print(f'processing {i}/{len(args.files)-1}')
-        clouds = layerwise_cloud(file_path, n_samples=256, count=5, seed=0)
+            print(f'processing {i}/{len(args.files)-1}',
+                  file_path.stem,
+                  sep='\t')
+        clouds = layerwise_cloud(file_path,
+                                 n_samples=256,
+                                 count=args.count,
+                                 seed=args.seed)
         dgms = persistet_diagram(clouds, n_jobs=args.jobs)
+        if args.verbose:
+            print('\t', dgms.shape)
         save_diagrams(file_path.parent / f'{file_path.stem}_dgms.npz', dgms)
