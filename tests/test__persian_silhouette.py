@@ -5,6 +5,7 @@ from gtda.diagrams import Silhouette as GiottoSilhouette
 from torch import Tensor
 
 from persian.layer_silhouette import SilhouetteLayer
+from persian.schema_tda import TdaSchema
 
 
 class TestSilhouette(unittest.TestCase):
@@ -52,7 +53,26 @@ class TestSilhouette(unittest.TestCase):
         sl_result = sl({d: Tensor(t) for d, t in dgms.items()})
         sl_result = sl_result.detach().numpy()
 
-        self.assertTrue(np.all(np.isclose(sl_result, g_result)))
+        self.assertTrue(np.allclose(sl_result, g_result))
+
+    def test_transformations(self):
+
+        dgm = np.array([
+            (1, 2, 0),
+            (3, 4, 0),
+            (5, 6, 0),
+            (2, 3, 1),
+            (2, 5, 1),
+            (2, 3, 2),
+            (2, 3, 2),
+            (3, 5, 2),
+        ],
+                       dtype=float)
+
+        res = TdaSchema.dgm_from_gtda(dgm)
+        self.assertTrue(np.allclose(res[0], dgm[0:3, :2]))
+        self.assertTrue(np.allclose(res[1], dgm[3:5, :2]))
+        self.assertTrue(np.allclose(res[2], dgm[5:8, :2]))
 
 
 if __name__ == "__main__":

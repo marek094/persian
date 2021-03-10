@@ -9,6 +9,22 @@ from torch.utils.tensorboard import SummaryWriter
 
 class TdaSchema(Schema):
 
+    @staticmethod
+    def dgm_from_gtda(dgm_gtda):
+        # if len(dgm_gtda.shape) < 2:
+        #     print('NO')
+        #     return {
+        #         0: np.zeros((0, 2)),
+        #         1: np.zeros((0, 2)),
+        #         2: np.zeros((0, 2)),
+        #     }
+        # else:
+        #     print('OK')
+        assert len(dgm_gtda.shape) == 2
+        dims = dgm_gtda[:, 2]
+        dims = np.unique(np.sort(dims))
+        return {dim: dgm_gtda[dgm_gtda[:, 2] == dim][:, :2] for dim in dims}
+
     class DgmDataset(Dataset):
         """
         expect all files has same number of diagrams
@@ -53,13 +69,17 @@ class TdaSchema(Schema):
                 dgm = self._cache[1][j]
             else:
                 assert fpath.exists()
-                dgm = TdaSchema.DgmDataset._open(fpath)[j]
-                self._cache = (i, dgm)
+                dgms = TdaSchema.DgmDataset._open(fpath)
+                self._cache = (i, dgms)
+                dgm = dgms[j]
+
+            # print(dgm.shape)
+            dgm = TdaSchema.dgm_from_gtda(dgm)
 
             if self.transform is None:
-                dgm = self.transform(dgm)
+                dgm = {dim: self.transform(d) for dim, d in dgm.items()}
 
-            return dict(dgm=dgm, label=self.label_callback(fpath))
+            return (dgm, self.label_callback(fpath))
 
     model = None
 
