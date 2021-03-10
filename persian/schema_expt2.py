@@ -1,9 +1,11 @@
+from torchvision.transforms import transforms
 from torchvision.transforms.transforms import Lambda
 from persian.schema_tda import TdaSchema
 from persian.layer_silhouette import SilhouetteLayer
 
 import torch as T
 import torch.nn as nn
+import torch.nn.functional as F
 
 from torchvision.transforms import ToTensor, Lambda
 from torch.utils.data import DataLoader
@@ -27,7 +29,7 @@ class Expt2Schema(TdaSchema):
             dict(name='VALID_sd', type=int, default=101),
             dict(name='batch_size', type=int, default=8),
             dict(name='epochs', type=int, default=40),
-            dict(name='lr', type=float, default=0.1),
+            dict(name='lr', type=float, default=0.001),
             dict(name='gamma', type=float, default=0.985),
             dict(name='power_init', type=float, default=1.),
             dict(name='lo', type=float, default=0),
@@ -42,24 +44,42 @@ class Expt2Schema(TdaSchema):
     def prepare_dataset(self, set_name):
         sd = self.flags[f'{set_name}_sd']
 
-        def to_dict(x):
-            print('XXX', x.shape)
-            for i in range(10000000):
-                x += 0.00000001
-            return T.Tensor([0])
+        files = self.flags['datadir'].glob(f'*[,_]s{sd}[,_]*[,_]i32[,_]*.npz')
+        ds = TdaSchema.DgmDataset(
+            files=list(files),
+            transform=ToTensor(),
+            label_callback=lambda p: [
+                T.LongTensor([0 if float(x[1:]) == 0.05 else 1])
+                for x in p.stem.split('_')[1].split(',')
+                if x[0] == 'r'
+            ][0])
 
-        files = self.flags['datadir'].glob(f'*[,_]s{sd}[,_]*.npz')
-        ds = TdaSchema.DgmDataset(files=list(files),
-                                  transform=Lambda(to_dict),
-                                  label_callback=lambda p: [
-                                      0 if float(x[1:]) == 0.05 else 1
-                                      for x in p.stem.split('_')[1].split(',')
-                                      if x[0] == 'r'
-                                  ])
+        def collate(batch_list):
+            dims = (0, 1, 2)
+            labels = T.cat([label for _, label in batch_list])
+
+            dgms = {}
+            for dim in dims:
+                max_pts = max(dgm[dim].shape[0] for dgm, _ in batch_list)
+
+                #  padding to shape (batch, max_pts, 2)
+                for dgm, _ in batch_list:
+                    n_pts = dgm[dim].shape[0]
+                    tmp = T.zeros(max_pts, 2)
+                    tmp[:n_pts] = T.Tensor(dgm[dim])
+                    dgm[dim] = tmp
+                    # print(dim, dgm[dim].shape)
+
+                dgms[dim] = T.stack([dgm[dim] for dgm, _ in batch_list])
+
+            return dgms, labels
 
         bs = self.flags['batch_size']
         is_train = set_name == 'TRAIN'
-        self.loaders[set_name] = DataLoader(ds, batch_size=bs, shuffle=is_train)
+        self.loaders[set_name] = DataLoader(ds,
+                                            batch_size=bs,
+                                            collate_fn=collate,
+                                            shuffle=is_train)
 
     def prepare_model(self):
         W = self.flags['bins']
@@ -73,7 +93,7 @@ class Expt2Schema(TdaSchema):
             nn.ReLU(), nn.Conv1d(8, 16, kernel_size=5, stride=2),
             nn.BatchNorm1d(16), nn.ReLU(),
             nn.Conv1d(16, 32, kernel_size=5, stride=2), nn.BatchNorm1d(32),
-            nn.ReLU(), nn.Flatten(), nn.Linear(W * 4, 2))
+            nn.ReLU(), nn.Flatten(), nn.Linear(W // 2, 2))
 
         self.model = model.to(self.dev)
 
@@ -97,7 +117,7 @@ class Expt2Schema(TdaSchema):
         return range(self.flags['epochs'])
 
     def run_batches(self, set_name):
-        if set_name == 'TRAN':
+        if set_name == 'TRAIN':
             self.metrics[set_name] = self._run_batches_train(set_name)
         else:
             self.metrics[set_name] = self._run_batches_valid(set_name)
@@ -106,11 +126,13 @@ class Expt2Schema(TdaSchema):
         self.model.train()
         train_loss, correct, total = 0, 0, 0
         for inputs, targets in self.loaders[set_name]:
-            inputs, targets = inputs.to(self.dev), targets.to(self.dev)
+            inputs = {dim: inp.to(self.dev) for dim, inp in inputs.items()}
+            targets = targets.to(self.dev)
+
             self.optim.zero_grad()
             outputs = self.model(inputs)
             loss = self.crit(outputs, targets)
-            loss.backwards()
+            loss.backward()
             self.optim.step()
 
             train_loss += loss.item()
@@ -118,7 +140,7 @@ class Expt2Schema(TdaSchema):
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
-        self.scheduler.step()
+        self.sched.step()
         return dict(
             loss=train_loss / total,
             acc=100. * correct / total,
@@ -129,7 +151,9 @@ class Expt2Schema(TdaSchema):
         valid_loss, correct, total = 0, 0, 0
         with T.no_grad():
             for inputs, targets in self.loaders[set_name]:
-                inputs, targets = inputs.to(self.dev), targets.to(self.dev)
+                inputs = {dim: inp.to(self.dev) for dim, inp in inputs.items()}
+                targets = targets.to(self.dev)
+
                 outputs = self.model(inputs)
                 loss = self.crit(outputs, targets)
 
