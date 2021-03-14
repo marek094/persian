@@ -116,8 +116,6 @@ class Schema(Schemable):
         def to_elem(name, val):
             assert name in shorts
             short = shorts[name]
-            if type(val) == float:
-                val = f"{val:5f}"
             return f"{short}{val}"
 
         hstr = ",".join(to_elem(*it) for it in self.flags.items())
@@ -151,7 +149,7 @@ class Schema(Schemable):
         return Cls(flags)
 
     @classmethod
-    def from_hstr(Cls, full_hstr):
+    def hstr_as_flags(Cls, full_hstr):
         hparams = Cls.list_hparams()
         shorts = Cls.short_hparams()
         inv_shorts = {v: k for k, v in shorts.items()}
@@ -164,6 +162,11 @@ class Schema(Schemable):
             type_ = next(x['type'] for x in hparams if x['name'] == name)
             flags[name] = type_(val)
             # print(name, type_(val), type_, val, '#')
+        return flags
+
+    @classmethod
+    def from_hstr(Cls, full_hstr):
+        flags = Cls.hstr_as_flags(full_hstr)
         return Cls(flags)
 
     @classmethod
