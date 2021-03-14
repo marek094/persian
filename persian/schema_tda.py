@@ -1,3 +1,4 @@
+from torchvision.transforms import transforms
 from persian.schema_protocol import Schema
 from pathlib import Path
 
@@ -11,15 +12,6 @@ class TdaSchema(Schema):
 
     @staticmethod
     def dgm_from_gtda(dgm_gtda):
-        # if len(dgm_gtda.shape) < 2:
-        #     print('NO')
-        #     return {
-        #         0: np.zeros((0, 2)),
-        #         1: np.zeros((0, 2)),
-        #         2: np.zeros((0, 2)),
-        #     }
-        # else:
-        #     print('OK')
         assert len(dgm_gtda.shape) == 2
         dims = dgm_gtda[:, 2]
         dims = np.unique(np.sort(dims))
@@ -71,7 +63,11 @@ class TdaSchema(Schema):
 
             dgm = TdaSchema.dgm_from_gtda(dgm)
 
-            if self.transform is None:
+            if isinstance(self.transform, list):
+                dgm = [{dim: trfm(d)
+                        for dim, d in dgm.items()}
+                       for trfm in self.transform]
+            elif self.transform is not None:
                 dgm = {dim: self.transform(d) for dim, d in dgm.items()}
 
             return (dgm, self.labels[i])

@@ -9,6 +9,7 @@ def _vprint(verbose):
 
 def validated_training(model: Schemable,
                        verbose=True,
+                       save_txt=False,
                        kTRAIN='TRAIN',
                        kVALID='VALID'):
     vprint = _vprint(verbose)
@@ -28,6 +29,13 @@ def validated_training(model: Schemable,
         model.run_batches(kVALID)
         vprint('Valid\t' + model.metrics_report(kVALID))
         model.update_infoboard()
+
+        if save_txt:
+            for k in [kTRAIN, kVALID]:
+                path_report = model.flags[
+                    'logdir'] / f'{model.as_hstr()}_{ep}_{k}.txt'
+                with path_report.open('w') as f:
+                    print(model.metrics_report(k), file=f)
 
     return model
 
