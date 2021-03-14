@@ -1,3 +1,4 @@
+from torch._C import default_generator
 from torchvision.transforms import transforms
 from torchvision.transforms.transforms import Lambda
 from persian.schema_tda import TdaSchema
@@ -11,6 +12,8 @@ from torchvision.transforms import ToTensor, Lambda
 from torch.utils.data import DataLoader
 
 from pathlib import Path
+
+from schemas.schema_cifar10_cnn import CnnCifar10Schema
 
 
 class Flatten(nn.Module):
@@ -35,6 +38,7 @@ class Expt2Schema(TdaSchema):
             dict(name='lo', type=float, default=0),
             dict(name='hi', type=float, default=0.2),
             dict(name='bins', type=int, default=64),
+            dict(name='dims', type=int, default=3),
         ]
 
     def __init__(self, flags={}) -> None:
@@ -43,19 +47,20 @@ class Expt2Schema(TdaSchema):
 
     def prepare_dataset(self, set_name):
         sd = self.flags[f'{set_name}_sd']
+        files = list(
+            self.flags['datadir'].glob(f'*[,_]s{sd}[,_]*[,_]i32[,_]*.npz'))
 
-        files = self.flags['datadir'].glob(f'*[,_]s{sd}[,_]*[,_]i32[,_]*.npz')
-        ds = TdaSchema.DgmDataset(
-            files=list(files),
-            transform=ToTensor(),
-            label_callback=lambda p: [
-                T.LongTensor([0 if float(x[1:]) == 0.05 else 1])
-                for x in p.stem.split('_')[1].split(',')
-                if x[0] == 'r'
-            ][0])
+        def to_lr(stem):
+            cls, hstr = stem.split('_')[:2]
+            assert cls == CnnCifar10Schema.__name__
+            fs = CnnCifar10Schema.hstr_as_flags(hstr)
+            return T.LongTensor([0 if fs['lr'] == 0.05 else 1])
+
+        labels = [to_lr(p.stem) for p in files]
+        ds = TdaSchema.DgmDataset(data=zip(files, labels))
 
         def collate(batch_list):
-            dims = (0, 1, 2)
+            dims = list(range(self.flags['dims']))
             labels = T.cat([label for _, label in batch_list])
 
             dgms = {}
@@ -68,7 +73,6 @@ class Expt2Schema(TdaSchema):
                     tmp = T.zeros(max_pts, 2)
                     tmp[:n_pts] = T.Tensor(dgm[dim])
                     dgm[dim] = tmp
-                    # print(dim, dgm[dim].shape)
 
                 dgms[dim] = T.stack([dgm[dim] for dgm, _ in batch_list])
 

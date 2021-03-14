@@ -38,16 +38,13 @@ class TdaSchema(Schema):
             raise NotImplementedError(
                 f'Format {fpath.suffix} is not supported yet')
 
-        def __init__(self,
-                     files,
-                     transform=None,
-                     label_callback=str,
-                     dgm_count=None) -> None:
+        def __init__(self, data, transform=None, dgm_count=None) -> None:
             super().__init__()
-            self.files = files
+            self.files, self.labels = zip(*data)
             self.transform = transform
             self._cache = (None, None)
 
+            # determine shape by the first
             if dgm_count is None:
                 if len(self.files) > 0:
                     dgms = TdaSchema.DgmDataset._open(self.files[0])
@@ -57,7 +54,6 @@ class TdaSchema(Schema):
                     dgm_count = 0
 
             self.dgm_count = dgm_count
-            self.label_callback = label_callback
 
         def __len__(self):
             return len(self.files) * self.dgm_count
@@ -73,13 +69,12 @@ class TdaSchema(Schema):
                 self._cache = (i, dgms)
                 dgm = dgms[j]
 
-            # print(dgm.shape)
             dgm = TdaSchema.dgm_from_gtda(dgm)
 
             if self.transform is None:
                 dgm = {dim: self.transform(d) for dim, d in dgm.items()}
 
-            return (dgm, self.label_callback(fpath))
+            return (dgm, self.labels[i])
 
     model = None
 
