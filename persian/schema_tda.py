@@ -23,14 +23,19 @@ class TdaSchema(Schema):
         """
 
         @staticmethod
-        def _open(fpath):
+        def _open(fpath: Path):
             assert fpath.exists()
             if fpath.suffix == '.npz':
-                return np.load(fpath)['dgms']
+                return np.load(fpath)['dgms'].astype(np.float32)
             raise NotImplementedError(
                 f'Format {fpath.suffix} is not supported yet')
 
-        def __init__(self, data, transform=None, dgm_count=None) -> None:
+        def __init__(self,
+                     data,
+                     transform=None,
+                     dgm_count=None,
+                     load_all=False,
+                     from_gtda=True) -> None:
             super().__init__()
             self.files, self.labels = zip(*data)
             self.transform = transform
@@ -46,6 +51,13 @@ class TdaSchema(Schema):
                     dgm_count = 0
 
             self.dgm_count = dgm_count
+            self.from_gtda = from_gtda
+            self.load_all = load_all
+
+            if self.load_all:
+                self.mem = [self._open(f) for f in self.files]
+            else:
+                self.mem = None
 
         def __len__(self):
             return len(self.files) * self.dgm_count
@@ -53,22 +65,32 @@ class TdaSchema(Schema):
         def __getitem__(self, ix):
             i, j = ix // self.dgm_count, ix % self.dgm_count
             fpath = self.files[i]
-            if self._cache[0] == i:
-                dgm = self._cache[1][j]
+
+            if self.load_all:
+                dgm = self.mem[i][j]
             else:
-                assert fpath.exists()
-                dgms = TdaSchema.DgmDataset._open(fpath)
-                self._cache = (i, dgms)
-                dgm = dgms[j]
+                if self._cache[0] == i:
+                    dgm = self._cache[1][j]
+                else:
+                    assert fpath.exists()
+                    dgms = TdaSchema.DgmDataset._open(fpath)
+                    self._cache = (i, dgms)
+                    dgm = dgms[j]
 
-            dgm = TdaSchema.dgm_from_gtda(dgm)
+            if self.from_gtda:
+                dgm = TdaSchema.dgm_from_gtda(dgm)
 
-            if isinstance(self.transform, list):
-                dgm = [{dim: trfm(d)
-                        for dim, d in dgm.items()}
-                       for trfm in self.transform]
-            elif self.transform is not None:
-                dgm = {dim: self.transform(d) for dim, d in dgm.items()}
+                if isinstance(self.transform, list):
+                    dgm = [{dim: trfm(d)
+                            for dim, d in dgm.items()}
+                           for trfm in self.transform]
+                elif self.transform is not None:
+                    dgm = {dim: self.transform(d) for dim, d in dgm.items()}
+            else:
+                if isinstance(self.transform, list):
+                    dgm = [trfm(dgm) for trfm in self.transform]
+                elif self.transform is not None:
+                    dgm = self.transform(dgm)
 
             return (dgm, self.labels[i])
 
@@ -92,9 +114,15 @@ class TdaSchema(Schema):
         T.manual_seed(self.flags['seed'])
         self.dev = T.device("cuda:0" if T.cuda.is_available() else "cpu")
 
+        self.loaders = {}
+
     def update_infoboard(self) -> None:
         for phase, metric_set in self.metrics.items():
             for name, value in metric_set.items():
                 self._writer.add_scalar(f'{name}/{phase}', value,
                                         self._writer_epoch)
         self._writer_epoch += 1
+
+    def _placed_loader(self, set_name):
+        return (
+            (i.to(self.dev), o.to(self.dev)) for i, o in self.loaders[set_name])
