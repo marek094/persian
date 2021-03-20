@@ -55,27 +55,23 @@ class TdaSchema(Schema):
             self.load_all = load_all
 
             if self.load_all:
-                self.mem = [self._open(f) for f in self.files]
+                self.mem = [None] * len(self)
             else:
                 self.mem = None
 
         def __len__(self):
             return len(self.files) * self.dgm_count
 
-        def __getitem__(self, ix):
-            i, j = ix // self.dgm_count, ix % self.dgm_count
+        def getindex(self, i, j):
             fpath = self.files[i]
 
-            if self.load_all:
-                dgm = self.mem[i][j]
+            if self._cache[0] == i:
+                dgm = self._cache[1][j]
             else:
-                if self._cache[0] == i:
-                    dgm = self._cache[1][j]
-                else:
-                    assert fpath.exists()
-                    dgms = TdaSchema.DgmDataset._open(fpath)
-                    self._cache = (i, dgms)
-                    dgm = dgms[j]
+                assert fpath.exists()
+                dgms = TdaSchema.DgmDataset._open(fpath)
+                self._cache = (i, dgms)
+                dgm = dgms[j]
 
             if self.from_gtda:
                 dgm = TdaSchema.dgm_from_gtda(dgm)
@@ -93,6 +89,15 @@ class TdaSchema(Schema):
                     dgm = self.transform(dgm)
 
             return (dgm, self.labels[i])
+
+        def __getitem__(self, ix):
+            i, j = divmod(ix, self.dgm_count)
+
+            if not self.load_all:
+                return self.getindex(i, j)
+
+            self.mem[ix] = (self.mem[ix] or self.getindex(i, j))
+            return self.mem[ix]
 
     model = None
 

@@ -357,7 +357,6 @@ class BenchmarkSchema(TdaSchema):
             self.optim.zero_grad()
             outputs = self.model(inputs)
             # print("%@", outputs.shape, targets.shape)
-            # print("%@S", outputs, targets)
             loss = self.crit(outputs, targets)
             loss.backward()
             self.optim.step()
