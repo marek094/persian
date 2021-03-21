@@ -1,3 +1,4 @@
+from typing import OrderedDict
 from persian.trainer import validated_training
 from persian.schema_tda import TdaSchema
 from persian.torchize import SklearnTranform
@@ -26,7 +27,7 @@ class SmallZooPaper:
     DATAFRAME_METRIC_COLS = [
         'test_accuracy', 'test_loss', 'train_accuracy', 'train_loss'
     ]
-    TRAIN_SIZE = 15000
+    # TRAIN_SIZE = 15000
 
     @staticmethod
     def filter_checkpoints(dataframe,
@@ -163,6 +164,7 @@ class SmallZooPaper:
 
     def build_fcn(n_layers,
                   n_hidden,
+                  n_inputs,
                   n_outputs,
                   dropout_rate,
                   activation,
@@ -171,28 +173,36 @@ class SmallZooPaper:
                   b_init,
                   last_activation='softmax'):
         """Fully connected deep neural network."""
-        model = []
-        # model.append(Flatten())
-        # for _ in range(n_layers):
-        #     model.add(
-        #         nn.Linear(
-        #             n_hidden,
-        #             activation=activation,
-        #             kernel_regularizer=w_regularizer,
-        #             kernel_initializer=w_init,
-        #             bias_initializer=b_init))
-        #     if dropout_rate > 0.0:
-        #     model.add(keras.layers.Dropout(dropout_rate))
-        # if n_layers > 0:
-        #     model.add(keras.layers.Dense(n_outputs, activation=last_activation))
-        # else:
-        #     model.add(keras.layers.Dense(
-        #         n_outputs,
-        #         activation='sigmoid',
-        #         kernel_regularizer=w_regularizer,
-        #         kernel_initializer=w_init,
-        #         bias_initializer=b_init))
-        # return model
+        assert activation == 'relu', 'Unsupported activation'
+        assert b_init == 'zeros', 'Unsupported initializer'
+        assert last_activation == 'softmax', 'Unsupported lest_activation'
+
+        # TODO(mcerny): last_activation
+
+        def init(linear, w_init=w_init):
+            nn.init.normal_(linear.weight, std=w_init)
+            nn.init.zeros_(linear.bias)
+            return linear
+
+        model = OrderedDict()
+        model['flat_1'] = nn.Flatten()
+        prev_n_units = n_inputs
+        for i in range(n_layers):
+            model[f'fc_{i}'] = init(nn.Linear(prev_n_units, n_hidden))
+
+            model[f'relu_{i}'] = nn.ReLU()
+            if dropout_rate > 0.0:
+                model[f'drop_{i}'] = nn.Dropout(p=dropout_rate)
+
+            prev_n_units = n_hidden
+
+        if n_layers > 0:
+            model[f'fc_{n_layers}'] = init(nn.Linear(prev_n_units, n_outputs))
+        else:
+            model['fc'] = init(nn.Linear(prev_n_units, n_outputs))
+
+        model[f'sigm'] = nn.Sigmoid()
+        return nn.Sequential(model)
 
 
 class BenchmarkSchema(TdaSchema):
@@ -210,6 +220,7 @@ class BenchmarkSchema(TdaSchema):
             dict(name='epochs', type=int, default=30),
             dict(name='batch_size', type=int, default=8),
             dict(name='lr', type=float, default=0.01),
+            dict(name='model', type=str, default='cnn'),
         ]
 
     @staticmethod
@@ -304,19 +315,35 @@ class BenchmarkSchema(TdaSchema):
     def prepare_model(self):
         W = self.flags['bins']
         if self.vect['dim'] == 1:
-            model = nn.Sequential(
-                nn.Conv1d(3, 8, kernel_size=9, stride=4),\
-                nn.BatchNorm1d(8),\
-                nn.ReLU(),\
-                nn.Conv1d(8, 16, kernel_size=5, stride=2),\
-                nn.BatchNorm1d(16),\
-                nn.ReLU(),\
-                nn.Conv1d(16, 32, kernel_size=5, stride=2),\
-                nn.BatchNorm1d(32),\
-                nn.ReLU(),\
-                nn.Flatten(),\
-                nn.Linear(W // 2, 1),\
-                nn.Sigmoid())
+            if self.flags['model'] == 'cnn':
+                model = nn.Sequential(
+                    nn.Conv1d(3, 8, kernel_size=9, stride=4),\
+                    nn.BatchNorm1d(8),\
+                    nn.ReLU(),\
+                    nn.Conv1d(8, 16, kernel_size=5, stride=2),\
+                    nn.BatchNorm1d(16),\
+                    nn.ReLU(),\
+                    nn.Conv1d(16, 32, kernel_size=5, stride=2),\
+                    nn.BatchNorm1d(32),\
+                    nn.ReLU(),\
+                    nn.Flatten(),\
+                    nn.Linear(W // 2, 1),\
+                    nn.Sigmoid())
+            elif self.flags['model'] == 'fcn':
+                # from best configs
+                model = SmallZooPaper.build_fcn(
+                    n_layers=3,
+                    n_hidden=479,
+                    n_inputs=W * 3,
+                    n_outputs=1,
+                    dropout_rate=0.002517381386972617,
+                    activation='relu',
+                    w_regularizer=1.0637942362829095e-08,
+                    w_init=0.00376087607851958,
+                    b_init='zeros',
+                )
+            else:
+                assert False, "unknown model name"
         else:
             ...
 
@@ -326,17 +353,17 @@ class BenchmarkSchema(TdaSchema):
         self.model = model.to(self.dev)
 
     def prepare_criterium(self):
-        self.optim = T.optim.SGD(
+        self.optim = T.optim.Adam(
             self.model.parameters(),
             lr=self.flags['lr'],
-            momentum=0.9,
-            weight_decay=0.,
+            # momentum=0.9,
+            # weight_decay=0.,
         )
 
         self.sched = T.optim.lr_scheduler.StepLR(
             self.optim,
-            step_size=1,
-            # gamma=self.flags['gamma'],
+            step_size=self.flags['epochs'],
+            gamma=0.1,
         )
 
         self.crit = nn.MSELoss().to(self.dev)
