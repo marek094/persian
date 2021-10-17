@@ -1,4 +1,4 @@
-from persian.schema_protocol import Schemable
+from persian.schemas.schema import Schemable
 
 from pathlib import Path
 

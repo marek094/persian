@@ -187,8 +187,6 @@ class Schema(Schemable):
             f'{k}: {v:f}' for k, v in self.metrics[set_name].items())
 
     def __init__(self, flags={}):
-        super().__init__(flags)
-
         # create flags
         def to_flag(name, type, default, **_):
             if name in flags:
@@ -197,3 +195,6 @@ class Schema(Schemable):
 
         hparams = self.list_hparams()
         self.flags = dict(to_flag(**p) for p in hparams)
+
+
+SchemaSchema = Schema

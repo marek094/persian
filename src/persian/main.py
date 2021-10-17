@@ -1,32 +1,34 @@
 import argparse
 
-from persian.trainer import saved_torch_training
-from persian.main_grid import dynamic_import
+def dynamic_import(module, cls):
+    imp = __import__(module, fromlist=[cls])
+    return getattr(imp, cls)
 
-if __name__ == "__main__":
+def experiment_builder(parser_experiments=None, verbose=True):
     parser_main = argparse.ArgumentParser()
     parser_main.add_argument(
         '--schema',
         type=str,
-        default=None,
-        help='for example `schema_mnist_cnn.CnnMnistSchema`')
-    parser_main.add_argument('--persian', type=str, default=None)
-    parser_main.add_argument('--experiments', type=str, default=None)
-    args_main, unknown = parser_main.parse_known_args()
+        required=True,
+        help='for example `torch_dataset`')
+    args_main, args_unknown = parser_main.parse_known_args()
 
-    if args_main.schema is not None:
-        lib, cls_str = 'schemas', args_main.schema
-    elif args_main.persian is not None:
-        lib, cls_str = 'persian', args_main.persian
-    elif args_main.experiments is not None:
-        lib, cls_str = 'experiments', args_main.experiments
+    parts = args_main.schema.split('_')[::-1]
+    schema_cls = "".join([x[:1].upper() + x[1:] for x in parts]) + 'Schema'
+    DynSchema = dynamic_import(f'persian.schemas.{args_main.schema}', schema_cls)
 
-    *mds, cls = cls_str.split('.')
-    DynSchema = dynamic_import('.'.join([lib] + mds), cls)
+    print(args_main.schema, schema_cls)
 
-    parser = DynSchema.build_parser()
-    args = parser.parse_args(args=unknown)
+    schema_parser = DynSchema.build_parser()
+    if parser_experiments is None:
+        print('XXX', args_unknown)
+        args = schema_parser.parse_args(args=args_unknown)
+        args_snd = None
+    else:
+        args, args_unknown_snd = schema_parser.parse_known_args(args=args_unknown)
+        args_snd = parser_experiments.parser_args(args=args_unknown_snd)
 
     model = DynSchema.from_args(args)
-    print('Running', model.as_hstr())
-    saved_torch_training(model, verbose=True)
+    if verbose:
+        print('Running', model.as_hstr())
+    return args, args_snd
