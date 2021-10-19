@@ -12,7 +12,7 @@ def string_to_args(astr: str):
     return [
         v.strip()
         for x in astr.strip().split('\n')
-        for v in x.split(':')
+        for v in x.strip().split(' ', maxsplit=1)
     ]
 
 def experiment_builder(parser_experiments=None, verbose=True, default_args=[], args=None):
