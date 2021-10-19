@@ -24,7 +24,7 @@ class TorchSchema(Schema):
         self._writer = SummaryWriter(logs)
         self._writer_epoch = 0
         # deterministic mode
-        torch.set_deterministic(True)
+        torch.use_deterministic_algorithms(True)
         torch.manual_seed(self.flags['seed'])
         # device
         self.dev = torch.device(

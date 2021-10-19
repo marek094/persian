@@ -8,24 +8,23 @@ from persian.schemas.torch_dataset import DatasetTorchSchema
 class CnnDatasetTorchSchema(DatasetTorchSchema):
 
     @staticmethod
-    def make_cnn(flags):
-        raise NotImplementedError()
-
-    @staticmethod
     def list_hparams():
         return DatasetTorchSchema.list_hparams() + [
             dict(name='epochs', type=int, default=80),
             dict(name='lr', type=float, default=0.1, range=(0.01, 0.21, 0.01)),
             dict(name='weight_decay', type=float, default=5e-4),
             dict(name='lr_decay', type=int, default=1000),
-            dict(name='width', type=int, default=10, range=(2, 80, 4)),
+            # dict(name='width', type=int, default=10, range=(2, 80, 4)),
         ]
 
     def __init__(self, flags={}) -> None:
         super().__init__(flags)
 
+    def make_cnn(self):
+        raise NotImplementedError()
+
     def prepare_model(self):
-        self.model = self.make_cnn(self.flags['width'], num_classes=10)
+        self.model = self.make_cnn()
         self.model = self.model.to(self.dev)
 
     def prepare_criterium(self):
@@ -57,13 +56,13 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
         for inputs, targets in self.loaders[set_name]:
             inputs, targets = inputs.to(self.dev), targets.to(self.dev)
             self.optim.zero_grad()
-            outputs = self.model(inputs)
-            loss = self.crit(outputs, targets)
+            logits, feats = self.model(inputs)
+            loss = self.crit(logits, targets)
             loss.backward()
             self.optim.step()
 
             train_loss += loss.item()
-            _, predicted = outputs.max(1)
+            _, predicted = logits.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
@@ -75,11 +74,11 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
         with T.no_grad():
             for inputs, targets in self.loaders[set_name]:
                 inputs, targets = inputs.to(self.dev), targets.to(self.dev)
-                outputs = self.model(inputs)
-                loss = self.crit(outputs, targets)
+                logits, feats = self.model(inputs)
+                loss = self.crit(logits, targets)
 
                 test_loss += loss.item()
-                _, predicted = outputs.max(1)
+                _, predicted = logits.max(1)
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
 

@@ -1,6 +1,6 @@
 import sys
 from typing import List
-from argparse import ArgumentParser
+from argparse import ArgumentParser, BooleanOptionalAction
 from numpy import arange
 
 if sys.version_info.minor >= 9:
@@ -130,6 +130,8 @@ class Schema(Schemable):
             param['help'] = ','.join([
                 f'{d}: {param.pop(d)}' for d in ['range', 'help'] if d in param
             ])
+            if param['type'] == bool:
+                param['action'] = BooleanOptionalAction
             name = param.pop('name', "")
             names = [f'-{shorts[name]}', f'--{name}']
             parser.add_argument(*names, **param)

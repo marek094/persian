@@ -1,8 +1,7 @@
-from torch.utils import data
 from persian.schemas.torch import TorchSchema
 
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, dataset
+from torch.utils.data import DataLoader
 
 import copy
 from numpy.random import shuffle
@@ -37,16 +36,16 @@ class DatasetTorchSchema(TorchSchema):
         return trainset
 
     def _dataset_from_name(self, name):
-        datasets = {
-            'cifar10'  : dataset.CIFAR10,
-            'cifar100' : dataset.CIFAR100,
-            'mnist'    : dataset.MNIST,
-            'fmnist'   : dataset.FashionMNIST,
-            'svhn'     : dataset.SVHN,
+        dsets = {
+            'cifar10'  : datasets.CIFAR10,
+            'cifar100' : datasets.CIFAR100,
+            'mnist'    : datasets.MNIST,
+            'fmnist'   : datasets.FashionMNIST,
+            'svhn'     : datasets.SVHN,
         }
 
-        if name in datasets:
-            return datasets[name]
+        if name in dsets:
+            return dsets[name]
         return None
 
     def prepare_dataset(self, set_name):
@@ -58,6 +57,7 @@ class DatasetTorchSchema(TorchSchema):
 
         is_train = set_name == 'TRAIN'
         dataset_cls = self._dataset_from_name(self.flags['dataset'])
+        self.dataset_meta = dataset_cls.meta
         ds = dataset_cls(root='../data',
                               train=is_train,
                               download=True,
