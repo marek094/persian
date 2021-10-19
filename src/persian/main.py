@@ -1,10 +1,21 @@
 import argparse
+import sys
 
 def dynamic_import(module, cls):
     imp = __import__(module, fromlist=[cls])
     return getattr(imp, cls)
 
-def experiment_builder(parser_experiments=None, verbose=True, args=None):
+def string_to_args(astr: str):
+    """
+    Each line has one argument
+    """
+    return [
+        v.strip()
+        for x in astr.strip().split('\n')
+        for v in x.split(':')
+    ]
+
+def experiment_builder(parser_experiments=None, verbose=True, default_args=[], args=None):
     parser_main = argparse.ArgumentParser()
     parser_main.add_argument(
         '--schema',
@@ -12,7 +23,10 @@ def experiment_builder(parser_experiments=None, verbose=True, args=None):
         required=True,
         help='for example `torch_dataset`')
     parser_main.add_argument('--print_help', action='store_true')
-    args_main, args_unknown = parser_main.parse_known_args(args=args)
+
+    args_all = default_args
+    args_all += args if args is not None else sys.argv[1:]
+    args_main, args_unknown = parser_main.parse_known_args(args=args_all)
 
     parts = args_main.schema.split('_')[::-1]
     schema_cls = "".join([x[:1].upper() + x[1:] for x in parts]) + 'Schema'
