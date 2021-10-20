@@ -69,12 +69,12 @@ class DatasetTorchSchema(TorchSchema):
         sampler = None
 
         if is_train:
-            noise_size = len(ds) * self.flags['noise'] // 100
+            noise_size = round(len(ds) * self.flags['noise'] / 100)
             ds = self._get_dataset_label_noise(ds, noise_size=noise_size)
+            shuffle = True
             if self.flags['train_size'] > -1:
                 sampler = SubsetRandomSampler(range(self.flags['train_size']))
-
-            shuffle = sampler is None
+                shuffle = False
 
         self.loaders[set_name] = DataLoader(
             ds,
