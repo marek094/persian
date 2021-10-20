@@ -12,10 +12,9 @@ sota_default = """
     --nlayers 13
     --symetric
     --dropout 0.5
-
+    
 """
 
 if __name__ == "__main__":
     model, _ = experiment_builder(default_args=string_to_args(sota_default))
     saved_torch_training(model)
-

@@ -1,20 +1,22 @@
+from numpy.random.mtrand import sample
+from torch._C import default_generator
 from persian.schemas.torch import TorchSchema
 
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SubsetRandomSampler, sampler
 
 import copy
 from numpy.random import shuffle
 
 
 class DatasetTorchSchema(TorchSchema):
-
     @staticmethod
     def list_hparams():
         return TorchSchema.list_hparams() + [
             dict(name='batch_size', type=int, default=128),
             dict(name='noise', type=int, default=0, range=(0, 30, 10)),
             dict(name='dataset', type=str, default='cifar10'),
+            dict(name='train_size', type=int, default=-1)
         ]
 
     def __init__(self, flags={}) -> None:
@@ -37,11 +39,11 @@ class DatasetTorchSchema(TorchSchema):
 
     def _dataset_from_name(self, name):
         dsets = {
-            'cifar10'  : datasets.CIFAR10,
-            'cifar100' : datasets.CIFAR100,
-            'mnist'    : datasets.MNIST,
-            'fmnist'   : datasets.FashionMNIST,
-            'svhn'     : datasets.SVHN,
+            'cifar10': datasets.CIFAR10,
+            'cifar100': datasets.CIFAR100,
+            'mnist': datasets.MNIST,
+            'fmnist': datasets.FashionMNIST,
+            'svhn': datasets.SVHN,
         }
 
         if name in dsets:
@@ -59,11 +61,23 @@ class DatasetTorchSchema(TorchSchema):
         dataset_cls = self._dataset_from_name(self.flags['dataset'])
         self.dataset_meta = dataset_cls.meta
         ds = dataset_cls(root='../data',
-                              train=is_train,
-                              download=True,
-                              transform=transform)
+                         train=is_train,
+                         download=True,
+                         transform=transform)
+
+        shuffle = False
+        sampler = None
+
         if is_train:
             noise_size = len(ds) * self.flags['noise'] // 100
             ds = self._get_dataset_label_noise(ds, noise_size=noise_size)
-        bs = self.flags['batch_size']
-        self.loaders[set_name] = DataLoader(ds, batch_size=bs, shuffle=is_train)
+            if self.flags['train_size'] > -1:
+                sampler = SubsetRandomSampler(range(self.flags['train_size']))
+
+            shuffle = sampler is None
+
+        self.loaders[set_name] = DataLoader(
+            ds,
+            batch_size=self.flags['batch_size'],
+            shuffle=shuffle,
+            sampler=sampler)
