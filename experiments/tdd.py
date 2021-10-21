@@ -8,11 +8,15 @@ os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 sota_default = """
     --schema cnn_simple
-    --batch_size 32
+    --train_size 500
+    --batch_size 8
+    --optim sgd
     --nlayers 13
     --symetric
     --dropout 0.5
-    
+    --lr 0.5
+    --w_decay 1e-3
+    --h0_decay 0.1
 """
 
 if __name__ == "__main__":

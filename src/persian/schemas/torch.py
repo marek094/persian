@@ -14,7 +14,8 @@ class TorchSchema(Schema):
     def list_hparams():
         return Schema.list_hparams() + [
             dict(name='logdir', type=Path, default=Path() / 'runs'),
-            dict(name='seed', type=int, default=2022)
+            dict(name='seed', type=int, default=2022),
+            dict(name='ndalg', type=bool, default=True),
         ]
 
     def __init__(self, flags={}):
@@ -24,7 +25,8 @@ class TorchSchema(Schema):
         self._writer = SummaryWriter(logs)
         self._writer_epoch = 0
         # deterministic mode
-        torch.use_deterministic_algorithms(True)
+        if self.flags['ndalg']:
+            torch.use_deterministic_algorithms(True)
         torch.manual_seed(self.flags['seed'])
         # device
         self.dev = torch.device(
