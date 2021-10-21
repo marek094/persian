@@ -1,16 +1,12 @@
-from typing import List, Iterator
-
-from torch.utils import data
-from torch.utils.data import sampler
-from torch.utils.data.sampler import BatchSampler, RandomSampler
 from persian.schemas.torch import TorchSchema
 
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, SubsetRandomSampler, Sampler
+from torch.utils.data import DataLoader, SubsetRandomSampler, Sampler, BatchSampler
 import torch
 
-import copy
 from numpy.random import shuffle
+from typing import List, Iterator
+import copy
 
 
 class DatasetTorchSchema(TorchSchema):
@@ -20,8 +16,8 @@ class DatasetTorchSchema(TorchSchema):
             dict(name='batch_size', type=int, default=128),
             dict(name='noise', type=int, default=0, range=(0, 30, 10)),
             dict(name='dataset', type=str, default='cifar10'),
-            dict(name='train_size', type=int, default=-1),
-            dict(name='sub_batches', type=bool, default=False),
+            dict(name='train_size', type=int, default=None),
+            dict(name='sub_batches', type=int, default=None),
         ]
 
     def __init__(self, flags={}) -> None:
@@ -79,16 +75,22 @@ class DatasetTorchSchema(TorchSchema):
             noise_size = round(len(ds) * self.flags['noise'] / 100)
             ds = self._get_dataset_label_noise(ds, noise_size=noise_size)
             shuffle = True
-            size_limit = self.flags[
-                'train_size'] if self.flags['train_size'] > -1 else None
+            size_limit = self.flags['train_size']
 
-            if self.flags['sub_batches']:
-                batch_sampler = HomogeneousRandomBatchSampler(
+            if self.flags['sub_batches'] is not None:
+                sub_batch_sampler = HomogeneousRandomBatchSampler(
                     dataset=ds,
-                    batch_size=self.flags['batch_size'],
+                    batch_size=self.flags['sub_batches'],
                     drop_last=True,
                     size_limit=size_limit,
                 )
+                n_sub_batches = self.flags['batch_size'] // self.flags[
+                    'sub_batches']
+                batch_sampler = ConcatenatingBatchSampler(
+                    sub_batch_sampler,
+                    batch_size=n_sub_batches,
+                    drop_last=False)
+
                 batch_size = 1  # default for DataLoader
                 shuffle = None
             elif size_limit is not None:
@@ -162,3 +164,12 @@ class HomogeneousRandomBatchSampler(Sampler[List[int]]):
 
     def __len__(self) -> int:
         return self.len
+
+
+class ConcatenatingBatchSampler(BatchSampler):
+    def __init__(self, *args, **kwds) -> None:
+        super().__init__(*args, **kwds)
+
+    def __iter__(self) -> Iterator[List[int]]:
+        for batch in super().__iter__():
+            yield [idx for subbatch in batch for idx in subbatch]

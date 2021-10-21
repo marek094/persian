@@ -21,7 +21,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
 
     def __init__(self, flags={}) -> None:
         super().__init__(flags)
-        assert flags['h0_decay'] == 0.0 or flags['sub_batches'] == True
+        assert flags['h0_decay'] == 0.0 or flags['sub_batches'] is not None
 
     def make_cnn(self):
         raise NotImplementedError()
@@ -110,10 +110,15 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
         if self.flags['h0_decay'] == 0.0:
             return torch.tensor(0.0).to(self.dev)
 
-        # torch.use_deterministic_algorithms(False)
-        # n = feats.size(0)
+        top_scale = 0.7
+        actual_batch_size = feats.size(0)
+        n = self.flags['sub_batches']
         top_loss = torch.tensor(0.0).to(self.dev)
-        lt = self.pers_l2(feats)[0][0][:, 1]
-        top_loss += (lt - 0.7).abs().sum()
-        # torch.use_deterministic_algorithms(True)
+        for i in range(actual_batch_size // n):
+            z_sample = feats[i * n:(i + 1) * n, :].contiguous()
+            lt = self.pers_l2(z_sample)[0][0][:, 1]
+
+            top_loss += (lt - top_scale).abs().sum()
+        top_loss /= float(actual_batch_size // n)
+
         return self.flags['h0_decay'] * top_loss
