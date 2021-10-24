@@ -18,6 +18,7 @@ class DatasetTorchSchema(TorchSchema):
             dict(name='dataset', type=str, default='cifar10'),
             dict(name='train_size', type=int, default=None),
             dict(name='sub_batches', type=int, default=None),
+            dict(name='aug', type=str, default=None),
         ]
 
     def __init__(self, flags={}) -> None:
@@ -51,20 +52,36 @@ class DatasetTorchSchema(TorchSchema):
             return dsets[name]
         return None
 
-    def prepare_dataset(self, set_name):
-        transform = transforms.Compose([
+    def _augmentation_from_name(self, name):
+        aug_transforms = [
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465),
                                  (0.2023, 0.1994, 0.2010)),
-        ])
+        ]
+
+        if name is None:
+            pass
+        elif name == 'tdd':
+            aug_transforms += [
+                transforms.Pad([2, 2, 2, 2]),
+                transforms.RandomCrop([32, 32]),
+                transforms.RandomHorizontalFlip(p=0.5),
+            ]
+        else:
+            assert False
+
+        return aug_transforms
+
+    def prepare_dataset(self, set_name):
 
         is_train = set_name == 'TRAIN'
         dataset_cls = self._dataset_from_name(self.flags['dataset'])
+        aug_transforms = self._augmentation_from_name(self.flags['aug'])
         self.dataset_meta = dataset_cls.meta
         ds = dataset_cls(root='../data',
                          train=is_train,
                          download=True,
-                         transform=transform)
+                         transform=transforms.Compose(aug_transforms))
 
         shuffle = False
         sampler = None

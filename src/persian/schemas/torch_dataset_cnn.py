@@ -3,7 +3,7 @@ from persian.schemas.torch_dataset import DatasetTorchSchema
 
 import torch
 import torch.nn as nn
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 
 
 class CnnDatasetTorchSchema(DatasetTorchSchema):
@@ -13,6 +13,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
             dict(name='epochs', type=int, default=80),
             dict(name='lr', type=float, default=0.1, range=(0.01, 0.21, 0.01)),
             dict(name='optim', type=str, default='sgd'),
+            dict(name='sched', type=str, default=None),
             dict(name='w_decay', type=float, default=5e-4),
             # dict(name='lr_decay', type=int, default=1000),
             # dict(name='width', type=int, default=10, range=(2, 80, 4)),
@@ -36,14 +37,26 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
                                           lr=self.flags['lr'],
                                           weight_decay=self.flags['w_decay'])
         elif self.flags['optim'] == 'sgd':
-            self.optim = torch.optim.SGD(self.model.parameters(),
-                                         lr=self.flags['lr'],
-                                         weight_decay=self.flags['w_decay'],
-                                         momentum=0.9)
+            self.optim = torch.optim.SGD(
+                self.model.parameters(),
+                lr=self.flags['lr'],
+                weight_decay=self.flags['w_decay'],
+                momentum=0.9,
+                nesterov=True,
+            )
         else:
             assert False
 
-        self.scheduler = StepLR(self.optim, step_size=1, gamma=1.0)
+        if self.flags['sched'] == 'None':
+            self.scheduler = StepLR(self.optim, step_size=1, gamma=1.0)
+        elif self.flags['sched'] == 'cos':
+            self.scheduler = CosineAnnealingLR(self.optim,
+                                               T_max=self.flags['epochs'],
+                                               eta_min=0,
+                                               last_epoch=-1)
+        else:
+            assert False
+
         self.crit = nn.CrossEntropyLoss()
 
     def epoch_range(self):
@@ -95,15 +108,20 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
 
         return dict(loss=test_loss / total, acc=100. * correct / total)
 
-    @staticmethod
-    def pers_l2(feats):
-        from torchph.pershom import vr_persistence
+    def pers_l2(self, feats):
+        # from torchph.pershom import vr_persistence
+        n = feats.size(0)
         x = feats.unsqueeze(1).expand(
             [feats.size(0), feats.size(0),
              feats.size(1)])
         x = x.transpose(0, 1) - x
         x = x.norm(dim=2, p=2)
-        return vr_persistence(x, 0, 0)
+        # return vr_persistence(x, 0, 0)[0][0][:, 1]
+        mask = torch.eye(n, dtype=torch.bool).logical_not()
+        result = x[mask].view(n, n - 1).min(axis=1).values
+        mask = torch.ones_like(result, dtype=torch.bool)
+        mask[result.argmin()] = False
+        return result[mask]
 
     def _topological_crit(self, feats):
         # topological loss
@@ -116,7 +134,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
         top_loss = torch.tensor(0.0).to(self.dev)
         for i in range(actual_batch_size // n):
             z_sample = feats[i * n:(i + 1) * n, :].contiguous()
-            lt = self.pers_l2(z_sample)[0][0][:, 1]
+            lt = self.pers_l2(z_sample)
 
             top_loss += (lt - top_scale).abs().sum()
         top_loss /= float(actual_batch_size // n)
