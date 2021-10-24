@@ -1,0 +1,2 @@
+class IncompatibleFlagsError(ValueError):
+    pass

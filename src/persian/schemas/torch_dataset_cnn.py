@@ -1,5 +1,6 @@
-from torch.optim.adam import Adam
 from persian.schemas.torch_dataset import DatasetTorchSchema
+from persian.errors.flags_incompatible import IncompatibleFlagsError
+from persian.errors.value_flag_unknown import UnknownFlagValue
 
 import torch
 import torch.nn as nn
@@ -22,7 +23,9 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
 
     def __init__(self, flags={}) -> None:
         super().__init__(flags)
-        assert flags['h0_decay'] == 0.0 or flags['sub_batches'] is not None
+        if flags['h0_decay'] != 0.0 and flags['sub_batches'] is None:
+            raise IncompatibleFlagsError(
+                "Non-zero `h0_decay` requires `sub_batches` enabled")
 
     def make_cnn(self):
         raise NotImplementedError()
@@ -45,7 +48,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
                 nesterov=True,
             )
         else:
-            assert False
+            raise UnknownFlagValue(f"Unknown value of `optim`")
 
         if self.flags['sched'] == 'None':
             self.scheduler = StepLR(self.optim, step_size=1, gamma=1.0)

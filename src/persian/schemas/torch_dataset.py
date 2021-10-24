@@ -1,4 +1,5 @@
 from persian.schemas.torch import TorchSchema
+from persian.errors.flags_incompatible import IncompatibleFlagsError
 
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, SubsetRandomSampler, Sampler, BatchSampler
@@ -23,6 +24,12 @@ class DatasetTorchSchema(TorchSchema):
 
     def __init__(self, flags={}) -> None:
         super().__init__(flags)
+
+        if flags['sub_batches'] is not None:
+            if flags['batch_size'] % flags['sub_batches'] > 0:
+                raise IncompatibleFlagsError(
+                    "`batch_size` must be dividible by `sub_batches`")
+
         self.loaders = {}
 
     @staticmethod
@@ -52,11 +59,15 @@ class DatasetTorchSchema(TorchSchema):
             return dsets[name]
         return None
 
-    def _augmentation_from_name(self, name):
+    def _augmentation_from_name(self, name, data_mean=None, data_std=None):
+        if data_mean is None:
+            data_mean = (0.4914, 0.4822, 0.4465)
+        if data_std is None:
+            data_std = (0.2023, 0.1994, 0.2010)
+
         aug_transforms = [
             transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465),
-                                 (0.2023, 0.1994, 0.2010)),
+            transforms.Normalize(data_mean, data_std),
         ]
 
         if name is None:

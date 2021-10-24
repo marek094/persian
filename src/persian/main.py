@@ -64,6 +64,7 @@ def experiment_builder(parser_experiments=None,
         parser_schema.print_help()
         if parser_experiments is not None:
             parser_experiments.print_help()
+        exit(code=0)
 
     if parser_experiments is None:
         args = parser_schema.parse_args(args=args_unknown)

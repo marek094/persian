@@ -1,0 +1,2 @@
+class UnknownFlagValue(ValueError):
+    pass
