@@ -19,11 +19,12 @@ def string_to_arggrid(astr: str) -> Iterator[List[str]]:
     for x in astr.strip().split('\n'):
         k, *v = x.strip().split(' ', maxsplit=1)
         if len(v) == 1:
-            for val in v[0].strip().split(';'):
-                argset.append([k, val.strip()])
+            argset.append([(k, val.strip())
+                           for val in v[0].strip().split(';')])
         else:
-            argset.append([k])
-    return product(*argset)
+            argset.append([(k, )])
+    return ([v for argtuple in args for v in argtuple]
+            for args in product(*argset))
 
 
 def string_to_args(astr: str) -> List[str]:
