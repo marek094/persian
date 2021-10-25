@@ -19,6 +19,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
             # dict(name='lr_decay', type=int, default=1000),
             # dict(name='width', type=int, default=10, range=(2, 80, 4)),
             dict(name='h0_decay', type=float, default=0.0),
+            dict(name='h0_dens', type=float, default=0.7),
         ]
 
     def __init__(self, flags={}) -> None:
@@ -58,7 +59,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
                                                eta_min=0,
                                                last_epoch=-1)
         else:
-            assert False
+            raise UnknownFlagValue("Unknown value of `sched`")
 
         self.crit = nn.CrossEntropyLoss()
 
@@ -131,7 +132,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
         if self.flags['h0_decay'] == 0.0:
             return torch.tensor(0.0).to(self.dev)
 
-        top_scale = 0.7
+        top_scale = self.flags['h0_dens']
         actual_batch_size = feats.size(0)
         n = self.flags['sub_batches']
         top_loss = torch.tensor(0.0).to(self.dev)

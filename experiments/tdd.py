@@ -18,15 +18,18 @@ SOTA_DEFAULT = """
     --nlayers 13
     --symetric
     --dropout 0.5
-    --lr 0.1
+    --lr 0.5
     --w_decay 1e-3
     --ndalg
     --sub_batches 16
     --h0_decay 0.1
+    --h0_dens 0.13
     --aug tdd
     --sched cos
     --epochs 1500
 """
+
+# SimpleCnnSchema_lruns,s2022,nTrue,b256,o0,dcifar10,t500,u16,atdd,e310,r0.1,psgd,ccos,w0.001,y0.1,A13,i128,mTrue,B0.5_
 
 if __name__ == "__main__":
     for args in string_to_arggrid(SOTA_DEFAULT):

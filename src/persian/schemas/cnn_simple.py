@@ -1,5 +1,7 @@
 from torch._C import default_generator
 from torch.nn.modules import dropout, padding, pooling
+from persian.errors.value_flag_unknown import UnknownFlagValue
+from persian.errors.flags_incompatible import IncompatibleFlagsError
 from persian.schemas.torch_dataset_cnn import CnnDatasetTorchSchema
 
 from torch import nn
@@ -84,7 +86,9 @@ class Model(nn.Module):
                 linear_in = 10
 
         elif nlayers == 13:
-            assert symetric == True
+            if not symetric:
+                raise IncompatibleFlagsError(
+                    "Non-symetrical version is not implemented")
 
             # this is SimpleCNN13
             # yapf: disable
@@ -109,7 +113,7 @@ class Model(nn.Module):
             linear_in = width
 
         else:
-            assert False
+            raise UnknownFlagValue("Undefined number of layers `nlayers`")
 
         self.feat_ext = nn.Sequential(*feat_ext_layers)
         cls = nn.Linear(linear_in, nclasses)
