@@ -1,6 +1,6 @@
 from persian.schemas.torch_dataset import DatasetTorchSchema
 from persian.errors.flags_incompatible import IncompatibleFlagsError
-from persian.errors.value_flag_unknown import UnknownFlagValue
+from persian.errors.value_flag_unknown import UnknownFlagValueError
 
 import torch
 import torch.nn as nn
@@ -49,7 +49,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
                 nesterov=True,
             )
         else:
-            raise UnknownFlagValue(f"Unknown value of `optim`")
+            raise UnknownFlagValueError(f"Unknown value of `optim`")
 
         if self.flags['sched'] == 'None':
             self.scheduler = StepLR(self.optim, step_size=1, gamma=1.0)
@@ -59,7 +59,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
                                                eta_min=0,
                                                last_epoch=-1)
         else:
-            raise UnknownFlagValue("Unknown value of `sched`")
+            raise UnknownFlagValueError("Unknown value of `sched`")
 
         self.crit = nn.CrossEntropyLoss()
 

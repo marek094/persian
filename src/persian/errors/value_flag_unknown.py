@@ -1,2 +1,2 @@
-class UnknownFlagValue(ValueError):
+class UnknownFlagValueError(ValueError):
     pass

@@ -1,7 +1,6 @@
 from torch._C import default_generator
 from torch.nn.modules import dropout, padding, pooling
-from persian.errors.value_flag_unknown import UnknownFlagValue
-from persian.errors.flags_incompatible import IncompatibleFlagsError
+from persian.errors import UnknownFlagValueError, IncompatibleFlagsError
 from persian.schemas.torch_dataset_cnn import CnnDatasetTorchSchema
 
 from torch import nn
@@ -113,7 +112,7 @@ class Model(nn.Module):
             linear_in = width
 
         else:
-            raise UnknownFlagValue("Undefined number of layers `nlayers`")
+            raise UnknownFlagValueError("Undefined number of layers `nlayers`")
 
         self.feat_ext = nn.Sequential(*feat_ext_layers)
         cls = nn.Linear(linear_in, nclasses)
