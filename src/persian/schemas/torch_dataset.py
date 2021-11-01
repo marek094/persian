@@ -9,6 +9,10 @@ from numpy.random import shuffle
 from typing import List, Iterator
 import copy
 
+DEBUG = True
+if DEBUG:
+    from external.tdd.data import ds_factory_stratified_shuffle_split
+
 
 class DatasetTorchSchema(TorchSchema):
     @staticmethod
@@ -89,10 +93,15 @@ class DatasetTorchSchema(TorchSchema):
         dataset_cls = self._dataset_from_name(self.flags['dataset'])
         aug_transforms = self._augmentation_from_name(self.flags['aug'])
         self.dataset_meta = dataset_cls.meta
-        ds = dataset_cls(root='../data',
-                         train=is_train,
-                         download=True,
-                         transform=transforms.Compose(aug_transforms))
+        if DEBUG:
+            ds = ds_factory_stratified_shuffle_split(
+                'cifar10_train' if is_train else 'cifar10_test',
+                num_samples=self.flags['train_size'])
+        else:
+            ds = dataset_cls(root='../data',
+                             train=is_train,
+                             download=True,
+                             transform=transforms.Compose(aug_transforms))
 
         shuffle = False
         sampler = None
