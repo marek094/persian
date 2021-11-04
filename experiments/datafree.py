@@ -14,6 +14,7 @@ BEST_EXPERIMENT = """
     --schema prediction_pers
     --logdir rprs
     --no-ndalg
+    --pers_type l2
 """
 
 if __name__ == "__main__":
