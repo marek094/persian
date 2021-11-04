@@ -15,6 +15,7 @@ BEST_EXPERIMENT = """
     --logdir rprs
     --no-ndalg
     --pers_type l2
+    --no-use_norm
 """
 
 if __name__ == "__main__":
