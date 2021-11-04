@@ -17,6 +17,7 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='dgm_limit', type=int, default=2000),
             dict(name='dropout', type=int, default=0.15),
             dict(name='pers_type', type=str, default='l1'),
+            dict(name='use_norm', type=bool, default=True),
         ]
 
     def __init__(self, flags={}):
@@ -30,6 +31,7 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dev=self.dev,
             limit=self.flags['dgm_limit'],
             pers=self.flags['pers_type'],
+            use_norm=self.flags['use_norm'],
             input_space_shape=[npts, 1, 32, 32],
         )
         # yapf: disable
@@ -152,6 +154,7 @@ class PersistenceForPredictionNet(T.nn.Module):
         max_dim,
         dev,
         limit,
+        use_norm=True,
         pers='l1',
         input_space_shape=[128, 1, 32, 32],
         concat_input_space=True,
@@ -224,18 +227,26 @@ class PersistenceForPredictionNet(T.nn.Module):
                      axis=0)
 
     def forward(self, x_cnn_batch):
-        pers_hom = [
-            self._flatcat2([
-                T.norm(self._flatcat([
-                    self.input_space,
-                ]),
-                       dim=1,
-                       keepdim=True),
+        if self.use_norm:
+            pers_hom = [
+                self._flatcat2([
+                    T.norm(self._flatcat([
+                        self.input_space,
+                    ]),
+                           dim=1,
+                           keepdim=True),
+                    self._vect(
+                        self._pershom(
+                            self._flatcat([
+                                x_cnn(self.input_space),
+                            ]), ), ),
+                ]) for x_cnn in x_cnn_batch
+            ]
+        else:
+            pers_hom = [
                 self._vect(
                     self._pershom(self._flatcat([
                         x_cnn(self.input_space),
-                    ]), ), ),
-            ]) for x_cnn in x_cnn_batch
-        ]
-
+                    ]), ), ) for x_cnn in x_cnn_batch
+            ]
         return T.stack(pers_hom, axis=0)
