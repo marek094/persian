@@ -165,6 +165,7 @@ class PersistenceForPredictionNet(T.nn.Module):
         self.max_dim = max_dim
         self.dev = dev
         self.limit = limit
+        self.use_norm = use_norm
 
         assert pers in ['l1', 'l2']
         self.pers = pers
