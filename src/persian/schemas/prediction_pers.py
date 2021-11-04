@@ -2,7 +2,7 @@ from persian.schemas.torch_zooset import ZoosetTorchSchema
 
 import torch as T
 import numpy as np
-from torchph.pershom import vr_persistence_l1
+from torchph.pershom import vr_persistence_l1, vr_persistence
 
 
 class PersPredictionSchema(ZoosetTorchSchema):
@@ -13,8 +13,10 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='max_dim', type=int, default=1),
             dict(name='npts', type=int, default=64),
             dict(name='lr_inp', type=float, default=1e-2),
-            dict(name='lr_mdl', type=float, default=1e-5),
+            dict(name='lr', type=float, default=1e-5),
             dict(name='dgm_limit', type=int, default=2000),
+            dict(name='dropout', type=int, default=0.15),
+            dict(name='pers_type', type=str, default='l1'),
         ]
 
     def __init__(self, flags={}):
@@ -26,17 +28,32 @@ class PersPredictionSchema(ZoosetTorchSchema):
             npts=npts,
             max_dim=self.flags['max_dim'],
             dev=self.dev,
-            input_space_shape=[npts, 1, 32, 32])
-        model = T.nn.Sequential(ppnet, T.nn.Flatten(),
-                                T.nn.Linear(4190, 4 * 1024), T.nn.LeakyReLU(),
-                                T.nn.Linear(4 * 1024, 2 * 1024),
-                                T.nn.LeakyReLU(),
-                                T.nn.Linear(2 * 1024, 4 * 1024),
-                                T.nn.LeakyReLU(), T.nn.Linear(4 * 1024, 1024),
-                                T.nn.LeakyReLU(),
-                                T.nn.Dropout(p=0.15, inplace=True),
-                                T.nn.Linear(1024, 1), T.nn.Sigmoid())
+            limit=self.flags['dgm_limit'],
+            pers=self.flags['pers_type'],
+            input_space_shape=[npts, 1, 32, 32],
+        )
+        # yapf: disable
+        model = T.nn.Sequential(
+            ppnet,
+            T.nn.Flatten(),
+            T.nn.Linear(4190, 4 * 1024),
+            T.nn.LeakyReLU(),
 
+            T.nn.Linear(4 * 1024, 2 * 1024),
+            T.nn.LeakyReLU(),
+
+            T.nn.Linear(2 * 1024, 4 * 1024),
+            T.nn.LeakyReLU(),
+
+
+            T.nn.Linear(4 * 1024, 1024),
+            T.nn.LeakyReLU(),
+
+            T.nn.Dropout(p=0.15, inplace=True),
+            T.nn.Linear(1024, 1),
+            T.nn.Sigmoid()
+        )
+        # yapf: enable
         self.model = model.to(self.dev)
 
     def prepare_criterium(self):
@@ -45,9 +62,9 @@ class PersPredictionSchema(ZoosetTorchSchema):
             'params': module.parameters()
         } for module in modules[2:]] + [{
             'params': modules[1].parameters(),
-            "lr": 1e-2
+            "lr": self.flags['lr_inp']
         }],
-                                  lr=1e-5)
+                                  lr=self.flags['lr'])
 
         self.scheduler = T.optim.lr_scheduler.StepLR(
             self.optim,
@@ -134,6 +151,8 @@ class PersistenceForPredictionNet(T.nn.Module):
         npts,
         max_dim,
         dev,
+        limit,
+        pers='l1',
         input_space_shape=[128, 1, 32, 32],
         concat_input_space=True,
     ):
@@ -142,6 +161,10 @@ class PersistenceForPredictionNet(T.nn.Module):
         self.npts = npts
         self.max_dim = max_dim
         self.dev = dev
+        self.limit = limit
+
+        assert pers in ['l1', 'l2']
+        self.pers = pers
 
         self.input_space = T.nn.Parameter(T.tensor(
             self._gen_input(input_space_shape)),
@@ -159,11 +182,27 @@ class PersistenceForPredictionNet(T.nn.Module):
     def _flatcat2(inps):
         return T.cat([T.reshape(a, (-1, )) for a in inps], axis=0)
 
+    @staticmethod
+    def pers_l2(feats, max_dimension):
+        n = feats.size(0)
+        x = feats.unsqueeze(1).expand(
+            [feats.size(0), feats.size(0),
+             feats.size(1)])
+        x = x.transpose(0, 1) - x
+        x = x.norm(dim=2, p=2)
+        return vr_persistence(x, max_dimension=max_dimension)
+
     def _pershom(self, space):
-        ph = vr_persistence_l1(
-            space,
-            max_dimension=self.max_dim,
-        )
+        if self.pers == 'l1':
+            ph = vr_persistence_l1(
+                space,
+                max_dimension=self.max_dim,
+            )
+        elif self.pers == 'l2':
+            ph = self.pers_l2(
+                space,
+                max_dimension=self.max_dim,
+            )
         return ph[0]
 
     def _vect(self, pers_hom):
@@ -176,7 +215,11 @@ class PersistenceForPredictionNet(T.nn.Module):
             return zs
 
         return T.cat([
-            padd(v, n) for v, n in zip(pers_hom, [self.npts - 1, 2000, 4000])
+            padd(v, n) for v, n in zip(pers_hom, [
+                self.npts - 1,
+                self.limit,
+                self.limit * 2,
+            ])
         ],
                      axis=0)
 
