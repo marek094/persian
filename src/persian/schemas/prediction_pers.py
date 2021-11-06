@@ -1,5 +1,5 @@
-from torch._C import default_generator
 from persian.schemas.torch_zooset import ZoosetTorchSchema
+from persian.errors import UnknownFlagValueError
 
 import torch as T
 import numpy as np
@@ -21,13 +21,18 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='use_norm', type=bool, default=True),
             dict(name='gamma', type=float, default=0.9),
             dict(name='width', type=int, default=1024),
+            dict(name='dim_inp', type=int, default=32),
         ]
 
     def __init__(self, flags={}):
         super().__init__(flags)
 
+        if flags['dim_inp'] not in [32, 16]:
+            raise UnknownFlagValueError('Input dim value is not allowed')
+
     def prepare_model(self):
         npts = self.flags['npts']
+        dim = self.flags['dim_inp']
         ppnet = PersistenceForPredictionNet(
             npts=npts,
             max_dim=self.flags['max_dim'],
@@ -35,7 +40,7 @@ class PersPredictionSchema(ZoosetTorchSchema):
             limit=self.flags['dgm_limit'],
             pers=self.flags['pers_type'],
             use_norm=self.flags['use_norm'],
-            input_space_shape=[npts, 1, 32, 32],
+            input_space_shape=[npts, 1, dim, dim],
         )
         # yapf: disable
         if self.flags['use_norm']:
