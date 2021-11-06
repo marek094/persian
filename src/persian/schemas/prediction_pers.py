@@ -35,10 +35,11 @@ class PersPredictionSchema(ZoosetTorchSchema):
             input_space_shape=[npts, 1, 32, 32],
         )
         # yapf: disable
+        iface = 4190 if self.flags['use_norm'] else 4126
         model = T.nn.Sequential(
             ppnet,
             T.nn.Flatten(),
-            T.nn.Linear(4190, 4 * 1024),
+            T.nn.Linear(iface, 4 * 1024),
             T.nn.LeakyReLU(),
 
             T.nn.Linear(4 * 1024, 2 * 1024),
@@ -112,6 +113,7 @@ class PersPredictionSchema(ZoosetTorchSchema):
             all_targets += list(targets_[:, 0])
             total += targets.size(0) / self.flags['batch_size']
 
+        self.scheduler.step()
         # print(all_targets)
         loss = running_loss / total
         r2 = 1.0 - loss / np.var(all_targets)
