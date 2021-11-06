@@ -1,3 +1,4 @@
+from torch._C import default_generator
 from persian.schemas.torch_zooset import ZoosetTorchSchema
 
 import torch as T
@@ -18,6 +19,8 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='dropout', type=int, default=0.15),
             dict(name='pers_type', type=str, default='l1'),
             dict(name='use_norm', type=bool, default=True),
+            dict(name='gamma', type=float, default=0.9),
+            dict(name='width', type=int, default=1024),
         ]
 
     def __init__(self, flags={}):
@@ -35,25 +38,29 @@ class PersPredictionSchema(ZoosetTorchSchema):
             input_space_shape=[npts, 1, 32, 32],
         )
         # yapf: disable
-        iface = 4190 if self.flags['use_norm'] else 4126
+        if self.flags['use_norm']:
+            iface = 4190
+        else:
+            iface = 3998 + 2*npts
+        width = self.flags['width']
         model = T.nn.Sequential(
             ppnet,
             T.nn.Flatten(),
-            T.nn.Linear(iface, 4 * 1024),
+            T.nn.Linear(iface, 4 * width),
             T.nn.LeakyReLU(),
 
-            T.nn.Linear(4 * 1024, 2 * 1024),
+            T.nn.Linear(4 * width, 2 * width),
             T.nn.LeakyReLU(),
 
-            T.nn.Linear(2 * 1024, 4 * 1024),
+            T.nn.Linear(2 * width, 4 * width),
             T.nn.LeakyReLU(),
 
 
-            T.nn.Linear(4 * 1024, 1024),
+            T.nn.Linear(4 * width, width),
             T.nn.LeakyReLU(),
 
-            T.nn.Dropout(p=0.15, inplace=True),
-            T.nn.Linear(1024, 1),
+            T.nn.Dropout(self.flags['dropout'], inplace=True),
+            T.nn.Linear(width, 1),
             T.nn.Sigmoid()
         )
         # yapf: enable
@@ -72,7 +79,7 @@ class PersPredictionSchema(ZoosetTorchSchema):
         self.scheduler = T.optim.lr_scheduler.StepLR(
             self.optim,
             step_size=1,
-            gamma=0.9,
+            gamma=self.flags['gamma'],
         )
 
         self.crit = T.nn.MSELoss().to(self.dev)
