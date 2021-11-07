@@ -12,7 +12,7 @@ os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 BEST_EXPERIMENT = """
     --schema prediction_pers
-    --logdir rprs/2
+    --logdir rprs/3
     --no-ndalg
     --pers_type l1;l2
     --no-use_norm

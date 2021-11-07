@@ -24,7 +24,6 @@ def validated_training(model: Schemable,
 
         model.run_batches(kTRAIN)
         vprint('Train\t' + model.metrics_report(kTRAIN))
-        model.update_infoboard()
 
         model.run_batches(kVALID)
         vprint('Valid\t' + model.metrics_report(kVALID))
@@ -59,8 +58,8 @@ def saved_torch_training(model: Schemable,
 
         for k in ks:
             model.run_batches(k)
-            model.update_infoboard()
             vprint(k + '\t' + model.metrics_report(k))
+        model.update_infoboard()
 
         params = model.pack_model_params()
 
