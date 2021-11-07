@@ -11,6 +11,7 @@ torch.autograd.set_detect_anomaly(True)
 os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 SOTA_DEFAULT = """
+    --logdir runs/v2
     --schema cnn_simple
     --train_size 500
     --batch_size 256
@@ -23,7 +24,7 @@ SOTA_DEFAULT = """
     --ndalg
     --sub_batches 16
     --h0_decay 0.1
-    --h0_dens 0.13
+    --h0_dens 0.7
     --aug tdd
     --sched cos
     --epochs 1500
