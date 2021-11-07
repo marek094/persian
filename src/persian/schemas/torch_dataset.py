@@ -1,5 +1,6 @@
 from persian.schemas.torch import TorchSchema
 from persian.errors.flags_incompatible import IncompatibleFlagsError
+from persian.debug import *
 
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, SubsetRandomSampler, Sampler, BatchSampler
@@ -9,9 +10,8 @@ from numpy.random import shuffle
 from typing import List, Iterator
 import copy
 
-DEBUG = True
-if DEBUG:
-    from external.tdd.data import ds_factory_stratified_shuffle_split
+if is_debug():
+    from external.tdd.data import ds_factory_stratified_shuffle_split, ds_factory
 
 
 class DatasetTorchSchema(TorchSchema):
@@ -93,10 +93,13 @@ class DatasetTorchSchema(TorchSchema):
         dataset_cls = self._dataset_from_name(self.flags['dataset'])
         aug_transforms = self._augmentation_from_name(self.flags['aug'])
         self.dataset_meta = dataset_cls.meta
-        if DEBUG:
-            ds = ds_factory_stratified_shuffle_split(
-                'cifar10_train' if is_train else 'cifar10_test',
-                num_samples=self.flags['train_size'])
+        if is_debug():
+            if is_train:
+                ds = ds_factory_stratified_shuffle_split(
+                    ds_name='cifar10_train',
+                    num_samples=self.flags['train_size'])
+            else:
+                ds = ds_factory(ds_name='cifar10_test')
         else:
             ds = dataset_cls(root='../data',
                              train=is_train,

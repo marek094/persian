@@ -92,6 +92,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
             _, predicted = logits.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
+        self.scheduler.step()
 
         return dict(loss=train_loss / total, acc=100. * correct / total)
 
