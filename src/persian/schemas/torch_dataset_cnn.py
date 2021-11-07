@@ -43,9 +43,17 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
                                           weight_decay=self.flags['w_decay'])
         elif self.flags['optim'] == 'sgd':
             self.optim = torch.optim.SGD(
-                self.model.parameters(),
+                [
+                    dict(
+                        params=self.model.feat_ext.parameters(),
+                        weight_decay=self.flags['w_decay'],
+                    ),
+                    dict(
+                        params=self.model.cls.parameters(),
+                        weight_decay=self.flags['w_decay'],
+                    )
+                ],
                 lr=self.flags['lr'],
-                weight_decay=self.flags['w_decay'],
                 momentum=0.9,
                 nesterov=True,
             )
@@ -90,7 +98,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
             }
 
             # loss
-            for k, l in losses:
+            for k, l in losses.items():
                 losses_means[k] += l.item()
             weight += targets.size(0) / self.flags['batch_size']
             loss = sum(losses.values())
@@ -110,7 +118,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
 
         return {
             'acc': 100.0 * correct / total,
-            'loss': sum(losses_means.values()),
+            'loss_': sum(losses_means.values()),
             **losses_means
         }
 
@@ -128,7 +136,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
                 }
 
                 # loss
-                for k, l in losses:
+                for k, l in losses.items():
                     losses_means[k] += l.item()
                 weight += targets.size(0) / self.flags['batch_size']
 
@@ -142,7 +150,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
 
         return {
             'acc': 100.0 * correct / total,
-            'loss': sum(losses_means.values()),
+            'loss_': sum(losses_means.values()),
             **losses_means
         }
 

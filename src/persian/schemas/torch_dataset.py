@@ -19,7 +19,7 @@ class DatasetTorchSchema(TorchSchema):
     def list_hparams():
         return TorchSchema.list_hparams() + [
             dict(name='batch_size', type=int, default=128),
-            dict(name='noise', type=int, default=0, range=(0, 30, 10)),
+            dict(name='noise', type=int, default=0),
             dict(name='dataset', type=str, default='cifar10'),
             dict(name='train_size', type=int, default=None),
             dict(name='sub_batches', type=int, default=None),
@@ -112,8 +112,9 @@ class DatasetTorchSchema(TorchSchema):
         batch_size = self.flags['batch_size']
 
         if is_train:
-            noise_size = round(len(ds) * self.flags['noise'] / 100)
-            ds = self._get_dataset_label_noise(ds, noise_size=noise_size)
+            if self.flags['noise'] > 0:
+                noise_size = round(len(ds) * self.flags['noise'] / 100)
+                ds = self._get_dataset_label_noise(ds, noise_size=noise_size)
             shuffle = True
             size_limit = self.flags['train_size']
 
