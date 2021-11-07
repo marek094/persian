@@ -1,3 +1,4 @@
+from collections import defaultdict
 from persian.schemas.torch_dataset import DatasetTorchSchema
 from persian.errors.flags_incompatible import IncompatibleFlagsError
 from persian.errors.value_flag_unknown import UnknownFlagValueError
@@ -77,41 +78,73 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
 
     def _run_batches_train(self, set_name):
         self.model.train()
-        train_loss, correct, total = 0, 0, 0
+        correct, total = 0, 0
+        losses_means, weight = defaultdict(float), 0
         for inputs, targets in self.loaders[set_name]:
             inputs, targets = inputs.to(self.dev), targets.to(self.dev)
             self.optim.zero_grad()
             logits, feats = self.model(inputs)
-            loss = self.crit(logits, targets)
-            loss += self._topological_crit(feats)
+            losses = {
+                'loss/std': self.crit(logits, targets),
+                'loss/top': self._topological_crit(feats),
+            }
+
+            # loss
+            for k, l in losses:
+                losses_means[k] += l.item()
+            weight += targets.size(0) / self.flags['batch_size']
+            loss = sum(losses.values())
 
             loss.backward()
             self.optim.step()
 
-            train_loss += loss.item()
+            # accuracy
             _, predicted = logits.max(1)
-            total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
+            total += targets.size(0)
+
         self.scheduler.step()
 
-        return dict(loss=train_loss / total, acc=100. * correct / total)
+        for k in losses_means:
+            losses_means[k] /= weight
+
+        return {
+            'acc': 100.0 * correct / total,
+            'loss': sum(losses_means.values()),
+            **losses_means
+        }
 
     def _run_batches_valid(self, set_name):
         self.model.eval()
-        test_loss, correct, total = 0, 0, 0
+        correct, total = 0, 0
+        losses_means, weight = defaultdict(float), 0
         with torch.no_grad():
             for inputs, targets in self.loaders[set_name]:
                 inputs, targets = inputs.to(self.dev), targets.to(self.dev)
                 logits, feats = self.model(inputs)
-                loss = self.crit(logits, targets)
-                loss += self._topological_crit(feats)
+                losses = {
+                    'loss/std': self.crit(logits, targets),
+                    'loss/top': self._topological_crit(feats),
+                }
 
-                test_loss += loss.item()
+                # loss
+                for k, l in losses:
+                    losses_means[k] += l.item()
+                weight += targets.size(0) / self.flags['batch_size']
+
+                # accuracy
                 _, predicted = logits.max(1)
-                total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
+                total += targets.size(0)
 
-        return dict(loss=test_loss / total, acc=100. * correct / total)
+        for k in losses_means:
+            losses_means[k] /= weight
+
+        return {
+            'acc': 100.0 * correct / total,
+            'loss': sum(losses_means.values()),
+            **losses_means
+        }
 
     def pers_l2(self, feats):
         # from torchph.pershom import vr_persistence
