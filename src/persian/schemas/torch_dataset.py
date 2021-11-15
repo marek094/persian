@@ -1,9 +1,10 @@
+from torch.utils.data.dataset import Subset
 from persian.schemas.torch import TorchSchema
 from persian.errors.flags_incompatible import IncompatibleFlagsError
 from persian.debug import *
 
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, SubsetRandomSampler, Sampler, BatchSampler
+from torch.utils.data import DataLoader, SubsetRandomSampler, Sampler, BatchSampler, Dataset
 import torch
 
 from numpy.random import shuffle
@@ -22,7 +23,7 @@ class DatasetTorchSchema(TorchSchema):
             dict(name='noise', type=int, default=0),
             dict(name='dataset', type=str, default='cifar10'),
             dict(name='train_size', type=int, default=None),
-            dict(name='sub_batches', type=int, default=None),
+            dict(name='sub_batches', type=int, default=1),
             dict(name='aug', type=str, default=None),
         ]
 
@@ -106,6 +107,23 @@ class DatasetTorchSchema(TorchSchema):
                              download=True,
                              transform=transforms.Compose(aug_transforms))
 
+            classes = ds.classes
+            class_to_idx = ds.class_to_idx
+
+            if is_train:
+                if self.flags[
+                        'sub_batches'] == 1 and self.flags['train_size'] != 0:
+                    if self.flags['train_size'] > len(ds):
+                        raise IncompatibleFlagsError(
+                            'This dataset is smaller then --train_size')
+                    generator = torch.Generator()
+                    generator.manual_seed(2021)
+                    perm = torch.randperm(self.flags['train_size'],
+                                          generator=generator)
+                    ds = Subset(ds, indices=perm[:self.flags['train_size']])
+
+        ds = IndexedDataset(ds, classes, class_to_idx)
+
         shuffle = False
         sampler = None
         batch_sampler = None
@@ -118,7 +136,7 @@ class DatasetTorchSchema(TorchSchema):
             shuffle = True
             size_limit = self.flags['train_size']
 
-            if self.flags['sub_batches'] is not None:
+            if self.flags['sub_batches'] > 1:
                 sub_batch_sampler = HomogeneousRandomBatchSampler(
                     dataset=ds,
                     batch_size=self.flags['sub_batches'],
@@ -134,15 +152,27 @@ class DatasetTorchSchema(TorchSchema):
 
                 batch_size = 1  # default for DataLoader
                 shuffle = None
-            elif size_limit is not None:
-                sampler = SubsetRandomSampler(range(size_limit))
-                shuffle = None
 
         self.loaders[set_name] = DataLoader(ds,
                                             batch_size=batch_size,
                                             shuffle=shuffle,
                                             sampler=sampler,
                                             batch_sampler=batch_sampler)
+
+
+class IndexedDataset(Dataset):
+    def __init__(self, source_dataset, classes, class_to_idx) -> None:
+        super().__init__()
+        self.source_dataset = source_dataset
+        self.classes = classes
+        self.class_to_idx = class_to_idx
+
+    def __len__(self):
+        return len(self.source_dataset)
+
+    def __getitem__(self, index):
+        target, label = self.source_dataset[index]
+        return index, target, label
 
 
 class HomogeneousRandomBatchSampler(Sampler[List[int]]):

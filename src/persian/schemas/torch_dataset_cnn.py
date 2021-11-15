@@ -1,11 +1,15 @@
 from collections import defaultdict
+from typing import Iterator
+
 from persian.schemas.torch_dataset import DatasetTorchSchema
 from persian.errors.flags_incompatible import IncompatibleFlagsError
 from persian.errors.value_flag_unknown import UnknownFlagValueError
+from persian.global_h0_regularizer import GlobalH0Regularizer
 
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
+import numpy as np
 
 
 class CnnDatasetTorchSchema(DatasetTorchSchema):
@@ -21,6 +25,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
             # dict(name='width', type=int, default=10, range=(2, 80, 4)),
             dict(name='h0_decay', type=float, default=0.0),
             dict(name='h0_dens', type=float, default=0.7),
+            dict(name='h0_global', type=float, default=0.0)
         ]
 
     def __init__(self, flags={}) -> None:
@@ -72,8 +77,21 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
 
         self.crit = nn.CrossEntropyLoss()
 
-    def epoch_range(self):
-        return range(self.flags['epochs'])
+        self.global_h0_regularizer = None
+        if self.flags['h0_global'] > 0.0:
+            print('COEF.', self.flags['h0_global'])
+            self.global_h0_regularizer = GlobalH0Regularizer(
+                data_size=self.flags['train_size'],
+                feat_dim=128,
+                nclasses=10,
+                device=self.dev,
+                decay=self.flags['h0_global'],
+            )
+
+    def epoch_range(self) -> Iterator[int]:
+        for i in range(self.flags['epochs']):
+            self.epoch_i = i
+            yield i
 
     def run_batches(self, set_name):
         if set_name == 'TRAIN':
@@ -88,14 +106,18 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
         self.model.train()
         correct, total = 0, 0
         losses_means, weight = defaultdict(float), 0
-        for inputs, targets in self.loaders[set_name]:
+        # glob_features = []
+        for idcs, inputs, targets in self.loaders[set_name]:
             inputs, targets = inputs.to(self.dev), targets.to(self.dev)
             self.optim.zero_grad()
             logits, feats = self.model(inputs)
-            losses = {
-                'loss/std': self.crit(logits, targets),
-                'loss/top': self._topological_crit(feats),
-            }
+            losses = {'loss/ce': self.crit(logits, targets)}
+            if self.flags['sub_batches'] > 1:
+                losses['loss/top'] = self._topological_crit(feats)
+            if self.global_h0_regularizer is not None:
+                losses[
+                    'loss/global_top'] = self.global_h0_regularizer.criterium(
+                        idcs, targets, feats)
 
             # loss
             for k, l in losses.items():
@@ -127,13 +149,14 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
         correct, total = 0, 0
         losses_means, weight = defaultdict(float), 0
         with torch.no_grad():
-            for inputs, targets in self.loaders[set_name]:
+            for idcs, inputs, targets in self.loaders[set_name]:
                 inputs, targets = inputs.to(self.dev), targets.to(self.dev)
                 logits, feats = self.model(inputs)
-                losses = {
-                    'loss/std': self.crit(logits, targets),
-                    'loss/top': self._topological_crit(feats),
-                }
+                losses = {'loss/ce': self.crit(logits, targets)}
+                if self.flags['sub_batches'] > 1:
+                    losses['loss/top'] = self._topological_crit(feats)
+                # if self.global_h0_regularizer is not None:
+                #     losses['loss/global_top'] = self.global_h0_regularizer.criterium(idcs, targets, feats)
 
                 # loss
                 for k, l in losses.items():
