@@ -60,7 +60,7 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
         else:
             raise UnknownFlagValueError(f"Unknown value of `optim`")
 
-        if self.flags['sched'] == 'None':
+        if self.flags['sched'] is None:
             self.scheduler = StepLR(self.optim, step_size=1, gamma=1.0)
         elif self.flags['sched'] == 'cos':
             self.scheduler = CosineAnnealingLR(self.optim,
