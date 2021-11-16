@@ -1,6 +1,7 @@
 from persian.schemas.torch import TorchSchema
 from persian.errors.flags_incompatible import IncompatibleFlagsError
 from persian.debug import *
+import persian.config as config
 
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, SubsetRandomSampler, Sampler, BatchSampler
@@ -148,11 +149,15 @@ class DatasetTorchSchema(TorchSchema):
                 sampler = SubsetRandomSampler(range(size_limit))
                 shuffle = None
 
-        self.loaders[set_name] = DataLoader(ds,
-                                            batch_size=batch_size,
-                                            shuffle=shuffle,
-                                            sampler=sampler,
-                                            batch_sampler=batch_sampler)
+        self.loaders[set_name] = DataLoader(
+            ds,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            sampler=sampler,
+            batch_sampler=batch_sampler,
+            num_workers=config.DATASET_NUM_WORKERS,
+            pin_memory=config.DATASET_PIN_MEMORY,
+            prefetch_factor=config.DATASET_PREFETCH)
 
 
 class HomogeneousRandomBatchSampler(Sampler[List[int]]):
