@@ -64,7 +64,8 @@ class BoundaryCnnSchema(CnnDatasetTorchSchema):
         np.savez_compressed(path, **featspace)
 
     def _run_batches_train(self, set_name):
-        self._run_batches_valid(set_name)
+        if self.epoch_num <= 1:
+            self._run_batches_valid(set_name)
         return super()._run_batches_train(set_name)
 
     def _run_batches_valid(self, set_name):
