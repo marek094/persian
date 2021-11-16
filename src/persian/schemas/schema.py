@@ -12,7 +12,6 @@ else:
 class Schemable(Protocol):
     """
     """
-
     @staticmethod
     def list_hparams() -> List[dict]:
         """
@@ -82,7 +81,6 @@ class Schemable(Protocol):
 
 
 class Schema(Schemable):
-
     @staticmethod
     def list_hparams() -> List[dict]:
         return []
@@ -185,14 +183,17 @@ class Schema(Schemable):
         return gen(*lazy)
 
     def metrics_report(self, set_name):
-        return ", ".join(
-            f'{k}: {v:f}' for k, v in self.metrics[set_name].items())
+        return ", ".join(f'{k}: {v:f}'
+                         for k, v in self.metrics[set_name].items())
 
     def __init__(self, flags={}):
         # create flags
         def to_flag(name, type, default, **_):
             if name in flags:
-                return name, type(flags[name])
+                val = flags[name]
+                if val is None or val == 'None':
+                    return name, None
+                return name, type(val)
             return name, default
 
         hparams = self.list_hparams()
