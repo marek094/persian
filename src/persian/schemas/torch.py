@@ -1,5 +1,5 @@
-from typing import DefaultDict
 from persian.schemas.schema import Schema
+import persian.config as config
 
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
@@ -27,6 +27,10 @@ class TorchSchema(Schema):
         # deterministic mode
         if self.flags['ndalg']:
             torch.use_deterministic_algorithms(True)
+
+        if config.AUTOTUNER_TURN_ON:
+            torch.backends.cudnn.benchmark = True
+
         torch.manual_seed(self.flags['seed'])
         # device
         self.dev = torch.device(
