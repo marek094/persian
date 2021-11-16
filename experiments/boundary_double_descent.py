@@ -1,5 +1,5 @@
 from persian.main import experiment_builder, string_to_arggrid
-from persian.trainer import validated_training
+from persian.trainer import saved_torch_training
 from persian.errors.flags_incompatible import IncompatibleFlagsError
 
 import os
@@ -14,25 +14,26 @@ EXPERIMENT_DEFAULT = """
     --logdir boundary
     --schema cnn_boundary
 
+    --seed 2022
+    --width 1;2;4;8;16;32
+
     --epochs 4000
-    --train_size 500
-    --batch_size 256
-    --lr 0.5
-    --w_decay 1e-3
-    --sched cos
-    --epochs 310
-
-
+    --batch_size 128
+    --lr 0.0001
     --optim adam
     --noise 15
     --aug ddd
 
+    --save g127
+    --sched None
+    --w_decay 0.0
+    --h0_decay 0.0
 """
 
 if __name__ == "__main__":
     for args in string_to_arggrid(EXPERIMENT_DEFAULT):
         try:
             model, _ = experiment_builder(default_args=args)
-            validated_training(model, save_txt=True)
+            saved_torch_training(model, ask=True)
         except IncompatibleFlagsError as e:
             print('IncompatibleFlagsError: ', e)

@@ -54,10 +54,14 @@ class BoundaryCnnSchema(CnnDatasetTorchSchema):
             self.epoch_num += 1
             yield i
 
+    def is_to_be_saved(self):
+        return self.epoch_num in self.saving_sched
+
     def _save_featspace(self, featspace):
-        path = self.logs_path / f'featspace_{self.save_nth}.npz'
-        arr = np.asarray(featspace)
-        np.savez_compressed(path, featspace=arr)
+        path = self.logs_path / f'featspace_{self.epoch_num:04}.npz'
+        for k, v in featspace.items():
+            featspace[k] = np.asarray(v)
+        np.savez_compressed(path, **featspace)
 
     def _run_batches_train(self, set_name):
         self._run_batches_valid(set_name)
@@ -68,8 +72,7 @@ class BoundaryCnnSchema(CnnDatasetTorchSchema):
         correct, total = 0, 0
         losses_means, weight = defaultdict(float), 0
 
-        is_save = self.epoch_num in self.saving_sched
-        featspace = []
+        featspace = dict(feats=[], labels=[])
         with torch.no_grad():
             for inputs, targets in self.loaders[set_name]:
                 inputs, targets = inputs.to(self.dev), targets.to(self.dev)
@@ -79,8 +82,9 @@ class BoundaryCnnSchema(CnnDatasetTorchSchema):
                     'loss/top': self._topological_crit(feats),
                 }
 
-                if is_save:
-                    featspace += list(feats)
+                if self.is_to_be_saved():
+                    featspace['feats'] += feats.cpu().detach().numpy().tolist()
+                    featspace['labels'] += targets.cpu().numpy().tolist()
 
                 # loss
                 for k, l in losses.items():
@@ -95,7 +99,7 @@ class BoundaryCnnSchema(CnnDatasetTorchSchema):
         for k in losses_means:
             losses_means[k] /= weight
 
-        if is_save:
+        if self.is_to_be_saved():
             self._save_featspace(featspace)
 
         return {

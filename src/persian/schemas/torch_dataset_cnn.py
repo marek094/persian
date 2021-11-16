@@ -1,11 +1,14 @@
 from collections import defaultdict
+from pickle import STACK_GLOBAL
+
+from numpy.random.mtrand import gamma
 from persian.schemas.torch_dataset import DatasetTorchSchema
 from persian.errors.flags_incompatible import IncompatibleFlagsError
 from persian.errors.value_flag_unknown import UnknownFlagValueError
 
 import torch
 import torch.nn as nn
-from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
+import torch.optim.lr_scheduler as schedulers
 
 
 class CnnDatasetTorchSchema(DatasetTorchSchema):
@@ -17,8 +20,6 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
             dict(name='optim', type=str, default='sgd'),
             dict(name='sched', type=str, default=None),
             dict(name='w_decay', type=float, default=5e-4),
-            # dict(name='lr_decay', type=int, default=1000),
-            # dict(name='width', type=int, default=10, range=(2, 80, 4)),
             dict(name='h0_decay', type=float, default=0.0),
             dict(name='h0_dens', type=float, default=0.7),
         ]
@@ -61,12 +62,20 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
             raise UnknownFlagValueError(f"Unknown value of `optim`")
 
         if self.flags['sched'] is None:
-            self.scheduler = StepLR(self.optim, step_size=1, gamma=1.0)
+            self.scheduler = schedulers.StepLR(self.optim,
+                                               step_size=1,
+                                               gamma=1.0)
         elif self.flags['sched'] == 'cos':
-            self.scheduler = CosineAnnealingLR(self.optim,
-                                               T_max=self.flags['epochs'],
-                                               eta_min=0,
-                                               last_epoch=-1)
+            self.scheduler = schedulers.CosineAnnealingLR(
+                self.optim,
+                T_max=self.flags['epochs'],
+                eta_min=0,
+                last_epoch=-1)
+        elif self.flags['sched'].startswith('exp'):
+            step_size = int(self.flags['sched'][3:])
+            self.scheduler = schedulers.StepLR(self.optim,
+                                               step_size=step_size,
+                                               gamma=0.1)
         else:
             raise UnknownFlagValueError("Unknown value of `sched`")
 

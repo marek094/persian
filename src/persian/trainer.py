@@ -32,8 +32,8 @@ def validated_training(model: Schemable,
         if save_txt:
             for k in [kTRAIN, kVALID]:
                 path_report = model.flags[
-                    'logdir'] / f'{model.as_hstr()}_{ep}_{k}.txt'
-                with path_report.open('w') as f:
+                    'logdir'] / f'{model.as_hstr()}_{k}.txt'
+                with path_report.open('a') as f:
                     print(model.metrics_report(k), file=f)
 
     return model
@@ -42,7 +42,8 @@ def validated_training(model: Schemable,
 def saved_torch_training(model: Schemable,
                          verbose=True,
                          kTRAIN='TRAIN',
-                         kVALID='VALID'):
+                         kVALID='VALID',
+                         ask=True):
     import torch as T
     vprint = _vprint(verbose)
 
@@ -61,13 +62,12 @@ def saved_torch_training(model: Schemable,
             vprint(k + '\t' + model.metrics_report(k))
         model.update_infoboard()
 
-        params = model.pack_model_params()
-
-        path = model.flags['logdir'] / f'{model.as_hstr()}_{ep:04}.pt'
-        T.save(params, path)
+        if not ask or model.is_to_be_saved():
+            params = model.pack_model_params()
+            path = model.flags['logdir'] / f'{model.as_hstr()}_{ep:04}.pt'
+            T.save(params, path)
 
         for k in [kTRAIN, kVALID]:
-            path_report = model.flags[
-                'logdir'] / f'{model.as_hstr()}_{ep}_{k}.txt'
-            with path_report.open('w') as f:
+            path_report = model.flags['logdir'] / f'{model.as_hstr()}_{k}.txt'
+            with path_report.open('a') as f:
                 print(model.metrics_report(k), file=f)

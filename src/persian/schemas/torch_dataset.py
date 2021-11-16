@@ -6,7 +6,6 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, SubsetRandomSampler, Sampler, BatchSampler
 import torch
 
-from numpy.random import shuffle
 from typing import List, Iterator
 import copy
 
@@ -36,18 +35,24 @@ class DatasetTorchSchema(TorchSchema):
 
         self.loaders = {}
 
-    @staticmethod
-    def _get_dataset_label_noise(trainset, noise_size):
-        ######## shuffle
+    def _get_dataset_label_noise(self, trainset):
+        if self.flags['train_size'] is not None:
+            raise IncompatibleFlagsError(
+                'Limiting train_size together with noising data' +
+                "is not yet supported")
+
+        gen = torch.Generator()
+        gen.manual_seed(self.flags['seed'] + 1)
+
         train_size = len(trainset)
-        shuffle_targets_set = [
-            copy.deepcopy(trainset.targets[idx])
-            for idx in range(train_size - noise_size, train_size)
-        ]
-        shuffle(shuffle_targets_set)
-        for idx in range(train_size - noise_size, train_size):
-            trainset.targets[idx] = shuffle_targets_set[idx - train_size +
-                                                        noise_size]
+        noise_size = round(train_size * self.flags['noise'] / 100)
+
+        select_idcs = torch.randperm(train_size, generator=gen)[:noise_size]
+        shuffled_idcs = torch.randperm(noise_size, generator=gen)
+        targets = torch.tensor(trainset.targets)
+        targets[select_idcs] = targets[select_idcs][shuffled_idcs]
+        trainset.targets = targets.tolist()
+
         return trainset
 
     def _dataset_from_name(self, name):
@@ -82,6 +87,12 @@ class DatasetTorchSchema(TorchSchema):
                 transforms.RandomCrop([32, 32]),
                 transforms.RandomHorizontalFlip(p=0.5),
             ]
+        elif name == 'ddd':
+            aug_transforms += [
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+            ]
+
         else:
             assert False
 
@@ -113,8 +124,7 @@ class DatasetTorchSchema(TorchSchema):
 
         if is_train:
             if self.flags['noise'] > 0:
-                noise_size = round(len(ds) * self.flags['noise'] / 100)
-                ds = self._get_dataset_label_noise(ds, noise_size=noise_size)
+                ds = self._get_dataset_label_noise(ds)
             shuffle = True
             size_limit = self.flags['train_size']
 
