@@ -22,6 +22,7 @@ class TorchSchema(Schema):
         super().__init__(flags)
         # writer
         logs = self.flags['logdir'] / f'{self.as_hstr()}_'
+        self.logs_path = logs
         self._writer = SummaryWriter(logs)
         self._writer_epoch = 0
         # deterministic mode
