@@ -128,10 +128,19 @@ class Schema(Schemable):
             param['help'] = ','.join([
                 f'{d}: {param.pop(d)}' for d in ['range', 'help'] if d in param
             ])
-            if param['type'] == bool:
-                param['action'] = BooleanOptionalAction
             name = param.pop('name', "")
             names = [f'-{shorts[name]}', f'--{name}']
+            if param['type'] == bool:
+                if sys.version_info.minor >= 9:
+                    param['action'] = BooleanOptionalAction
+                else:
+                    param2 = param.copy()
+                    names2 = [f'--no-{name}']
+                    param2['action'] = 'store_false'
+                    param2['dest'] = name
+                    parser.add_argument(*names2, **param2)
+
+                    param['action'] = 'store_true'
             parser.add_argument(*names, **param)
         return parser
 
