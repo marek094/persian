@@ -1,6 +1,7 @@
 import sys
+import argparse
 from typing import List
-from argparse import ArgumentParser, BooleanOptionalAction
+from argparse import ArgumentParser
 from numpy import arange
 
 if sys.version_info.minor >= 9:
@@ -132,8 +133,9 @@ class Schema(Schemable):
             names = [f'-{shorts[name]}', f'--{name}']
             if param['type'] == bool:
                 if sys.version_info.minor >= 9:
-                    param['action'] = BooleanOptionalAction
+                    param['action'] = argparse.BooleanOptionalAction
                 else:
+                    del param['type']
                     param2 = param.copy()
                     names2 = [f'--no-{name}']
                     param2['action'] = 'store_false'
