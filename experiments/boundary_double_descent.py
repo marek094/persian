@@ -15,7 +15,7 @@ EXPERIMENT_DEFAULT = """
     --schema cnn_boundary
 
     --seed 2022
-    --width 1;2;4;8;16;32
+    --width 48
 
     --epochs 4000
     --batch_size 128
