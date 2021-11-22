@@ -51,7 +51,7 @@ def main(args):
         shape.append(loc_shape[:maxdim + 1])
 
     dgms_a = np.concatenate(dgms)
-    shape_a = np.array(shape).astype(np.uint64)
+    shape_a = np.array(shape).astype(int)
     np.savez(out_path, dgms=dgms_a, shape=shape_a)
 
 
