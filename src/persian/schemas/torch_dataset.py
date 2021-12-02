@@ -164,6 +164,7 @@ class IndexedDataset(Dataset):
     def __init__(self, source_dataset, classes, class_to_idx) -> None:
         super().__init__()
         self.source_dataset = source_dataset
+        self.targets = source_dataset.targets
         self.classes = classes
         self.class_to_idx = class_to_idx
 

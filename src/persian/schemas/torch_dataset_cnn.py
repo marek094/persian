@@ -155,8 +155,10 @@ class CnnDatasetTorchSchema(DatasetTorchSchema):
                 losses = {'loss/ce': self.crit(logits, targets)}
                 if self.flags['sub_batches'] > 1:
                     losses['loss/top'] = self._topological_crit(feats)
-                # if self.global_h0_regularizer is not None:
-                #     losses['loss/global_top'] = self.global_h0_regularizer.criterium(idcs, targets, feats)
+                if self.global_h0_regularizer is not None:
+                    losses[
+                        'loss/global_top'] = self.global_h0_regularizer.criterium(
+                            idcs, targets, feats)
 
                 # loss
                 for k, l in losses.items():

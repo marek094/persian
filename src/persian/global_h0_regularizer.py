@@ -22,6 +22,7 @@ class GlobalH0Regularizer():
         self.decay = decay
 
     def update(self, idcs, feat):
+        print(';;', idcs.shape, feat.shape, self.data.shape)
         self.data[idcs] = feat
 
     def criterium(self, idcs, labels, feats):
