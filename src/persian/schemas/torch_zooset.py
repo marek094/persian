@@ -18,7 +18,8 @@ class ZoosetTorchSchema(TorchSchema):
             dict(name='batch_size', type=int, default=32),
             dict(name='target', type=str, default='test_accuracy'),
             dict(name='split_seed', type=int, default=2021),
-            dict(name='train_size', type=int, default=0)
+            dict(name='train_size', type=int, default=0),
+            dict(name='dataset_base', type=str, default='cifar10')
         ]
 
     def __init__(self, flags={}):
@@ -37,6 +38,7 @@ class ZoosetTorchSchema(TorchSchema):
         self.unsplitted_dataset = ZoosetDataset(
             target_name=self.flags['target'],
             dev=self.dev,
+            dataset_base=self.flags['dataset_base'],
         )
 
         np.random.seed(self.flags['split_seed'])
@@ -75,12 +77,12 @@ class ZoosetDataset(data.Dataset):
         tgts = [[tgt] for _, tgt in batch]
         return nets, T.tensor(tgts)
 
-    def __init__(self, target_name, dev):
-        self.data_folder = Path() / '../data'
+    def __init__(self, target_name, dev, dataset_base='cifar10'):
+        self.data_folder = Path.home() / 'data' / 'cnn_zoo' / dataset_base
         assert self.data_folder.exists()
         self.metrics_path = self.data_folder / 'metrics.csv'
         assert self.metrics_path.exists()
-        self.weights_path = self.data_folder / 'weights_step86.npz'
+        self.weights_path = self.data_folder / 'weights.npy'
         assert self.weights_path.exists()
 
         self.target_name = target_name
@@ -102,7 +104,10 @@ class ZoosetDataset(data.Dataset):
             weights = np.load(self.weights_path)['arr_0']
             metrics = metrics[metrics.step == 86]
         else:
-            weights = np.load(self.weights_path)
+            metrics['idx'] = metrics.index
+            metrics = metrics[metrics.step == 86]
+            idx = metrics.idx.to_numpy()
+            weights = np.load(self.weights_path)[idx]
 
         self.weights = weights
         self.metrics = metrics
