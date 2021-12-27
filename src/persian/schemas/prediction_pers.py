@@ -16,12 +16,13 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='lr_inp', type=float, default=1e-2),
             dict(name='lr', type=float, default=1e-5),
             dict(name='dgm_limit', type=int, default=2000),
-            dict(name='dropout', type=int, default=0.15),
+            dict(name='dropout', type=float, default=0.15),
             dict(name='pers_type', type=str, default='l1'),
             dict(name='use_norm', type=bool, default=True),
             dict(name='gamma', type=float, default=0.9),
             dict(name='width', type=int, default=1024),
             dict(name='dim_inp', type=int, default=32),
+            dict(name='padd_inp', type=float, default=0.),
         ]
 
     def __init__(self, flags={}):
@@ -41,6 +42,7 @@ class PersPredictionSchema(ZoosetTorchSchema):
             pers=self.flags['pers_type'],
             use_norm=self.flags['use_norm'],
             input_space_shape=[npts, 1, dim, dim],
+            input_values_padding=self.flags['padd_inp'],
         )
         # yapf: disable
         if self.flags['use_norm']:
@@ -156,9 +158,10 @@ class PersPredictionSchema(ZoosetTorchSchema):
 
 class PersistenceForPredictionNet(T.nn.Module):
     @staticmethod
-    def _gen_input(shape):
+    def _gen_input(shape, input_values_padding):
         shape0 = (shape[0], np.product(shape[1:]))
-        u = np.random.normal(0, 1, shape0)
+        u = np.random.normal(0 - input_values_padding,
+                             1 + input_values_padding, shape0)
         norm = np.linalg.norm(u, axis=1, keepdims=True)
         return (u / norm).reshape(shape).astype(np.float32)
 
@@ -172,6 +175,7 @@ class PersistenceForPredictionNet(T.nn.Module):
         pers='l1',
         input_space_shape=[128, 1, 32, 32],
         concat_input_space=True,
+        input_values_padding=0,
     ):
         super().__init__()
 
@@ -185,7 +189,7 @@ class PersistenceForPredictionNet(T.nn.Module):
         self.pers = pers
 
         self.input_space = T.nn.Parameter(T.tensor(
-            self._gen_input(input_space_shape)),
+            self._gen_input(input_space_shape, input_values_padding)),
                                           requires_grad=True)
 
         self.batch = input_space_shape[0]
