@@ -23,6 +23,8 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='width', type=int, default=1024),
             dict(name='dim_inp', type=int, default=32),
             dict(name='padd_inp', type=float, default=0.),
+            dict(name='init_inp', type=str, default='u'),
+            dict(name='gamma_step', type=int, default=1),
         ]
 
     def __init__(self, flags={}):
@@ -43,6 +45,7 @@ class PersPredictionSchema(ZoosetTorchSchema):
             use_norm=self.flags['use_norm'],
             input_space_shape=[npts, 1, dim, dim],
             input_values_padding=self.flags['padd_inp'],
+            initialization=self.flags['init_inp'],
         )
         # yapf: disable
         if self.flags['use_norm']:
@@ -70,6 +73,8 @@ class PersPredictionSchema(ZoosetTorchSchema):
             T.nn.Linear(width, 1),
             T.nn.Sigmoid()
         )
+
+
         # yapf: enable
         self.model = model.to(self.dev)
 
@@ -85,7 +90,7 @@ class PersPredictionSchema(ZoosetTorchSchema):
 
         self.scheduler = T.optim.lr_scheduler.StepLR(
             self.optim,
-            step_size=1,
+            step_size=self.flags['gamma_step'],
             gamma=self.flags['gamma'],
         )
 
@@ -176,6 +181,7 @@ class PersistenceForPredictionNet(T.nn.Module):
         input_space_shape=[128, 1, 32, 32],
         concat_input_space=True,
         input_values_padding=0,
+        initialization='u',
     ):
         super().__init__()
 
@@ -188,9 +194,20 @@ class PersistenceForPredictionNet(T.nn.Module):
         assert pers in ['l1', 'l2']
         self.pers = pers
 
-        self.input_space = T.nn.Parameter(T.tensor(
-            self._gen_input(input_space_shape, input_values_padding)),
-                                          requires_grad=True)
+        if initialization == 'u':
+            tsr = T.tensor(
+                self._gen_input(input_space_shape, input_values_padding))
+        elif initialization.startswith('o'):
+            tsr = T.empty(input_space_shape)
+            T.nn.init.orthogonal_(tsr, gain=float(initialization[1:]))
+        elif initialization.startswith('k'):
+            tsr = T.empty(input_space_shape)
+            mode = dict(i='fan_in', o='fan_out')[initialization[1]]
+            T.nn.init.kaiming_uniform_(tsr, mode=mode, nonlinearity='relu')
+        else:
+            assert False
+
+        self.input_space = T.nn.Parameter(tsr, requires_grad=True)
 
         self.batch = input_space_shape[0]
         self.concat_input_space = concat_input_space
