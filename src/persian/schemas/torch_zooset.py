@@ -77,8 +77,12 @@ class ZoosetDataset(data.Dataset):
         tgts = [[tgt] for _, tgt in batch]
         return nets, T.tensor(tgts)
 
-    def __init__(self, target_name, dev, dataset_base='cifar10'):
-        self.data_folder = Path.home() / 'data' / 'cnn_zoo' / dataset_base
+    def __init__(self,
+                 target_name,
+                 dev,
+                 dataset_base='cifar10',
+                 folder=Path.home() / 'data'):
+        self.data_folder = folder / 'cnn_zoo' / dataset_base
         assert self.data_folder.exists()
         self.metrics_path = self.data_folder / 'metrics.csv'
         assert self.metrics_path.exists()

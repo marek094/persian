@@ -65,7 +65,6 @@ class PersPredictionSchema(ZoosetTorchSchema):
             T.nn.Linear(2 * width, 4 * width),
             T.nn.LeakyReLU(),
 
-
             T.nn.Linear(4 * width, width),
             T.nn.LeakyReLU(),
 
