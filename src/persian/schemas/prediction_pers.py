@@ -25,6 +25,7 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='padd_inp', type=float, default=0.),
             dict(name='init_inp', type=str, default='u'),
             dict(name='gamma_step', type=int, default=1),
+            dict(name='batch_norm', type=int, default=0),
         ]
 
     def __init__(self, flags={}):
@@ -47,31 +48,43 @@ class PersPredictionSchema(ZoosetTorchSchema):
             input_values_padding=self.flags['padd_inp'],
             initialization=self.flags['init_inp'],
         )
-        # yapf: disable
         if self.flags['use_norm']:
             iface = 4190
         else:
-            iface = 3998 + 2*npts
+            iface = 3998 + 2 * npts
+
+        def get_bn(feats):
+            if self.flags['batch_norm'] == 1:
+                return [T.nn.BatchNorm1d(num_features=feats, device=self.dev)]
+            return []
+
+        use_bias = self.flags['batch_norm'] == 0
         width = self.flags['width']
-        model = T.nn.Sequential(
+
+        # yapf: disable
+        model = T.nn.Sequential(*[
             ppnet,
             T.nn.Flatten(),
-            T.nn.Linear(iface, 4 * width),
+            T.nn.Linear(iface, 4 * width, bias=use_bias),
+            ] + get_bn(4 * width) + [
             T.nn.LeakyReLU(),
 
-            T.nn.Linear(4 * width, 2 * width),
+            T.nn.Linear(4 * width, 2 * width, bias=use_bias),
+            ] + get_bn(2 * width) + [
             T.nn.LeakyReLU(),
 
-            T.nn.Linear(2 * width, 4 * width),
+            T.nn.Linear(2 * width, 4 * width, bias=use_bias),
+            ] + get_bn(4 * width) + [
             T.nn.LeakyReLU(),
 
-            T.nn.Linear(4 * width, width),
+            T.nn.Linear(4 * width, width, bias=use_bias),
+            ] + get_bn(width) + [
             T.nn.LeakyReLU(),
 
             T.nn.Dropout(self.flags['dropout'], inplace=True),
             T.nn.Linear(width, 1),
             T.nn.Sigmoid()
-        )
+        ])
 
 
         # yapf: enable
