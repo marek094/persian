@@ -26,6 +26,8 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='init_inp', type=str, default='u'),
             dict(name='gamma_step', type=int, default=1),
             dict(name='batch_norm', type=int, default=0),
+            dict(name='weight_decay', type=float, default=0),
+            dict(name='use_grad', type=bool, default=True),
         ]
 
     def __init__(self, flags={}):
@@ -47,6 +49,7 @@ class PersPredictionSchema(ZoosetTorchSchema):
             input_space_shape=[npts, 1, dim, dim],
             input_values_padding=self.flags['padd_inp'],
             initialization=self.flags['init_inp'],
+            learnable=self.flags['use_grad'],
         )
         if self.flags['use_norm']:
             iface = 4190
@@ -65,6 +68,8 @@ class PersPredictionSchema(ZoosetTorchSchema):
         model = T.nn.Sequential(*[
             ppnet,
             T.nn.Flatten(),
+            ] + get_bn(iface) + [
+
             T.nn.Linear(iface, 4 * width, bias=use_bias),
             ] + get_bn(4 * width) + [
             T.nn.LeakyReLU(),
@@ -98,7 +103,8 @@ class PersPredictionSchema(ZoosetTorchSchema):
             'params': modules[1].parameters(),
             "lr": self.flags['lr_inp']
         }],
-                                  lr=self.flags['lr'])
+                                  lr=self.flags['lr'],
+                                  weight_decay=self.flags['weight_decay'])
 
         self.scheduler = T.optim.lr_scheduler.StepLR(
             self.optim,
@@ -194,6 +200,7 @@ class PersistenceForPredictionNet(T.nn.Module):
         concat_input_space=True,
         input_values_padding=0,
         initialization='u',
+        learnable=True,
     ):
         super().__init__()
 
@@ -219,7 +226,7 @@ class PersistenceForPredictionNet(T.nn.Module):
         else:
             assert False
 
-        self.input_space = T.nn.Parameter(tsr, requires_grad=True)
+        self.input_space = T.nn.Parameter(tsr, requires_grad=learnable)
 
         self.batch = input_space_shape[0]
         self.concat_input_space = concat_input_space
