@@ -19,7 +19,8 @@ class ZoosetTorchSchema(TorchSchema):
             dict(name='target', type=str, default='test_accuracy'),
             dict(name='split_seed', type=int, default=2021),
             dict(name='train_size', type=int, default=0),
-            dict(name='dataset_base', type=str, default='cifar10')
+            dict(name='dataset_base', type=str, default='cifar10'),
+            dict(name='Step', type=int, default=86),
         ]
 
     def __init__(self, flags={}):
@@ -39,6 +40,7 @@ class ZoosetTorchSchema(TorchSchema):
             target_name=self.flags['target'],
             dev=self.dev,
             dataset_base=self.flags['dataset_base'],
+            training_step=self.flags['Step'],
         )
 
         np.random.seed(self.flags['split_seed'])
@@ -81,6 +83,7 @@ class ZoosetDataset(data.Dataset):
                  target_name,
                  dev,
                  dataset_base='cifar10',
+                 training_step=None,
                  folder=Path.home() / 'data'):
         self.data_folder = folder / 'cnn_zoo' / dataset_base
         assert self.data_folder.exists()
@@ -89,6 +92,7 @@ class ZoosetDataset(data.Dataset):
         self.weights_path = self.data_folder / 'weights.npy'
         assert self.weights_path.exists()
 
+        self.step = training_step
         self.target_name = target_name
         self.dev = dev
 
@@ -104,12 +108,13 @@ class ZoosetDataset(data.Dataset):
 
         metrics = pd.read_csv(self.metrics_path)
 
-        if self.weights_path.suffix == '.npz':
+        if self.weights_path.suffix == '.npz' and self.step == 86:
+            # cached
             weights = np.load(self.weights_path)['arr_0']
             metrics = metrics[metrics.step == 86]
         else:
             metrics['idx'] = metrics.index
-            metrics = metrics[metrics.step == 86]
+            metrics = metrics[metrics.step == self.step]
             idx = metrics.idx.to_numpy()
             weights = np.load(self.weights_path)[idx]
 
@@ -139,7 +144,7 @@ class ZoosetDataset(data.Dataset):
 
         zoomodel = TorchCNN(act, use_last_layer=False).set_weight(w)
         zoomodel = zoomodel.to(self.dev)
-        assert step == 86
+        assert step == self.step
 
         self.cache[index] = zoomodel
         return self.cache[index], self.targets[index]

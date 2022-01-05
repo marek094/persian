@@ -21,19 +21,22 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='use_norm', type=bool, default=True),
             dict(name='gamma', type=float, default=0.9),
             dict(name='width', type=int, default=1024),
-            dict(name='dim_inp', type=int, default=32),
+            dict(name='dim_inp', type=int, default=32),  # bad name
             dict(name='padd_inp', type=float, default=0.),
             dict(name='init_inp', type=str, default='u'),
             dict(name='gamma_step', type=int, default=1),
             dict(name='batch_norm', type=int, default=0),
             dict(name='weight_decay', type=float, default=0),
-            dict(name='use_grad', type=bool, default=True),
+            dict(name='graph_mode', type=bool, default=False),
+            dict(name='padding_input', type=int, default=0),
         ]
 
     def __init__(self, flags={}):
         super().__init__(flags)
 
-        if flags['dim_inp'] not in [32, 16]:
+        if flags['dim_inp'] + 2 * flags['padding_input'] not in [
+                16, 28, 32, 36
+        ]:
             raise UnknownFlagValueError('Input dim value is not allowed')
 
     def prepare_model(self):
@@ -49,12 +52,13 @@ class PersPredictionSchema(ZoosetTorchSchema):
             input_space_shape=[npts, 1, dim, dim],
             input_values_padding=self.flags['padd_inp'],
             initialization=self.flags['init_inp'],
-            learnable=self.flags['use_grad'],
+            learnable=not self.flags['graph_mode'],
+            flags=self.flags,
         )
         if self.flags['use_norm']:
             iface = 4190
         else:
-            iface = 3998 + 2 * npts
+            iface = 2 * self.flags['dgm_limit'] + 2 * (npts - 1)
 
         def get_bn(feats):
             if self.flags['batch_norm'] == 1:
@@ -188,20 +192,19 @@ class PersistenceForPredictionNet(T.nn.Module):
         norm = np.linalg.norm(u, axis=1, keepdims=True)
         return (u / norm).reshape(shape).astype(np.float32)
 
-    def __init__(
-        self,
-        npts,
-        max_dim,
-        dev,
-        limit,
-        use_norm=True,
-        pers='l1',
-        input_space_shape=[128, 1, 32, 32],
-        concat_input_space=True,
-        input_values_padding=0,
-        initialization='u',
-        learnable=True,
-    ):
+    def __init__(self,
+                 npts,
+                 max_dim,
+                 dev,
+                 limit,
+                 use_norm=True,
+                 pers='l1',
+                 input_space_shape=[128, 1, 32, 32],
+                 concat_input_space=True,
+                 input_values_padding=0,
+                 initialization='u',
+                 learnable=True,
+                 flags=None):
         super().__init__()
 
         self.npts = npts
@@ -209,6 +212,7 @@ class PersistenceForPredictionNet(T.nn.Module):
         self.dev = dev
         self.limit = limit
         self.use_norm = use_norm
+        self.learnable = learnable
 
         assert pers in ['l1', 'l2']
         self.pers = pers
@@ -225,6 +229,10 @@ class PersistenceForPredictionNet(T.nn.Module):
             T.nn.init.kaiming_uniform_(tsr, mode=mode, nonlinearity='relu')
         else:
             assert False
+
+        if flags['padding_input'] > 0:
+            p = flags['padding_input']
+            tsr = T.nn.functional.pad(tsr, (p, p, p, p), 'constant', 0)
 
         self.input_space = T.nn.Parameter(tsr, requires_grad=learnable)
 
@@ -297,6 +305,19 @@ class PersistenceForPredictionNet(T.nn.Module):
                             ]), ), ),
                 ]) for x_cnn in x_cnn_batch
             ]
+        # elif self.learnable:
+        #     pers_hom = [
+        #         self._flatcat2([
+        #             self._flatcat([
+        #                 self.input_space,
+        #             ]),
+        #             self._vect(
+        #                 self._pershom(
+        #                     self._flatcat([
+        #                         x_cnn(self.input_space),
+        #                     ]), ), ),
+        #         ]) for x_cnn in x_cnn_batch
+        #     ]
         else:
             pers_hom = [
                 self._vect(
