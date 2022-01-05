@@ -21,8 +21,8 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='use_norm', type=bool, default=True),
             dict(name='gamma', type=float, default=0.9),
             dict(name='width', type=int, default=1024),
-            dict(name='dim_inp', type=int, default=32),  # bad name
-            dict(name='padd_inp', type=float, default=0.),
+            dict(name='dim_inp', type=int, default=32),
+            dict(name='padd_inp', type=float, default=0.),  # bad name
             dict(name='init_inp', type=str, default='u'),
             dict(name='gamma_step', type=int, default=1),
             dict(name='batch_norm', type=int, default=0),
