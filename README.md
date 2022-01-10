@@ -3,6 +3,15 @@ Persian Project
 ![Persistent analysis](figures/persian_logo.png)
 
 
+```
+@masterthesis{
+    cerny21, 
+    title={Persistent Homology and Neural Networks}, 
+    school={Charles University, Faculty of Mathematics and Physics},
+    author={\v{C}ern\'{y}, Marek}, 
+    year={2021}
+}
+```
 
 ---
 # Persistent Homology and Neural Networks (Thesis Experiments)
@@ -25,7 +34,7 @@ $ export PYTHONPATH=src
 
 ## Data
 
-This section is relevant only to experiements in Chapter 4. Please download data from [Google Research Repository](https://github.com/google-research/google-research/tree/master/dnn_predict_accuracy).
+This section is relevant only to experiments in Chapter 4. Please download data from [Google Research Repository](https://github.com/google-research/google-research/tree/master/dnn_predict_accuracy).
 Create this repository
 ```bash
 $ cd path/to/this/repo
@@ -47,7 +56,7 @@ mnist
 svhn_cropped
 ```
 
-***Please note that the folders have nested archives that need to be extracted. ***
+_Please note that the folders have nested archives that need to be extracted._
 
 
 ## Boundary Manifold and Double Descent (Chapter 3)
