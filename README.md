@@ -88,7 +88,8 @@ For our early experiments, see [Boundary Repo](https://github.com/marek094/bound
 - Construction 1 (Random Space)
 
     Notebook: [experiments_notebooks/submission_investigating_cnn_weights_with_giotto_vectorization_SRV.ipynb](https://github.com/marek094/persian/blob/master/experiments_notebooks/submission_investigating_cnn_weights_with_giotto_vectorization_SRV.ipynb) 
-
+    
+    Or alternatively: [challenge-iclr-2021/Investigating-CNN-Weights-with-Topology](https://github.com/geomstats/challenge-iclr-2021/tree/main/marek094__Investigating-CNN-Weights-with-Topology)
 - Construction 2 (Computation Tree)
 
     Notebook 1: [experiments_notebooks/topology_of_winning_lottery_tickets.ipynb](https://github.com/marek094/persian/blob/master/experiments_notebooks/topology_of_winning_lottery_tickets.ipynb) 
