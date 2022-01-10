@@ -12,14 +12,14 @@ os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 BEST_EXPERIMENT = """
     --schema prediction_pers
-    --logdir rprs/4
+    --logdir rgph
     --no-ndalg
     --pers_type l1
     --no-use_norm
     --epochs 100
     --seed 2021
     --batch_size 128
-    --npts 64
+    --npts 256
     --lr_inp 0.01
     --lr 0.001
     --dgm_limit 2000
@@ -27,6 +27,7 @@ BEST_EXPERIMENT = """
     --gamma 0.9
     --width 512
     --dim_inp 32
+    --graph_mode
 """
 
 if __name__ == "__main__":

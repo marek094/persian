@@ -16,18 +16,27 @@ class PersPredictionSchema(ZoosetTorchSchema):
             dict(name='lr_inp', type=float, default=1e-2),
             dict(name='lr', type=float, default=1e-5),
             dict(name='dgm_limit', type=int, default=2000),
-            dict(name='dropout', type=int, default=0.15),
+            dict(name='dropout', type=float, default=0.15),
             dict(name='pers_type', type=str, default='l1'),
             dict(name='use_norm', type=bool, default=True),
             dict(name='gamma', type=float, default=0.9),
             dict(name='width', type=int, default=1024),
             dict(name='dim_inp', type=int, default=32),
+            dict(name='padd_inp', type=float, default=0.),  # bad name
+            dict(name='init_inp', type=str, default='u'),
+            dict(name='gamma_step', type=int, default=1),
+            dict(name='batch_norm', type=int, default=0),
+            dict(name='weight_decay', type=float, default=0),
+            dict(name='graph_mode', type=bool, default=False),
+            dict(name='padding_input', type=int, default=0),
         ]
 
     def __init__(self, flags={}):
         super().__init__(flags)
 
-        if flags['dim_inp'] not in [32, 16]:
+        if flags['dim_inp'] + 2 * flags['padding_input'] not in [
+                16, 28, 32, 36
+        ]:
             raise UnknownFlagValueError('Input dim value is not allowed')
 
     def prepare_model(self):
@@ -41,33 +50,52 @@ class PersPredictionSchema(ZoosetTorchSchema):
             pers=self.flags['pers_type'],
             use_norm=self.flags['use_norm'],
             input_space_shape=[npts, 1, dim, dim],
+            input_values_padding=self.flags['padd_inp'],
+            initialization=self.flags['init_inp'],
+            learnable=not self.flags['graph_mode'],
+            flags=self.flags,
         )
-        # yapf: disable
         if self.flags['use_norm']:
             iface = 4190
         else:
-            iface = 3998 + 2*npts
+            iface = 2 * self.flags['dgm_limit'] + 2 * (npts - 1)
+
+        def get_bn(feats):
+            if self.flags['batch_norm'] == 1:
+                return [T.nn.BatchNorm1d(num_features=feats, device=self.dev)]
+            return []
+
+        use_bias = self.flags['batch_norm'] == 0
         width = self.flags['width']
-        model = T.nn.Sequential(
+
+        # yapf: disable
+        model = T.nn.Sequential(*[
             ppnet,
             T.nn.Flatten(),
-            T.nn.Linear(iface, 4 * width),
+            ] + get_bn(iface) + [
+
+            T.nn.Linear(iface, 4 * width, bias=use_bias),
+            ] + get_bn(4 * width) + [
             T.nn.LeakyReLU(),
 
-            T.nn.Linear(4 * width, 2 * width),
+            T.nn.Linear(4 * width, 2 * width, bias=use_bias),
+            ] + get_bn(2 * width) + [
             T.nn.LeakyReLU(),
 
-            T.nn.Linear(2 * width, 4 * width),
+            T.nn.Linear(2 * width, 4 * width, bias=use_bias),
+            ] + get_bn(4 * width) + [
             T.nn.LeakyReLU(),
 
-
-            T.nn.Linear(4 * width, width),
+            T.nn.Linear(4 * width, width, bias=use_bias),
+            ] + get_bn(width) + [
             T.nn.LeakyReLU(),
 
             T.nn.Dropout(self.flags['dropout'], inplace=True),
             T.nn.Linear(width, 1),
             T.nn.Sigmoid()
-        )
+        ])
+
+
         # yapf: enable
         self.model = model.to(self.dev)
 
@@ -79,11 +107,12 @@ class PersPredictionSchema(ZoosetTorchSchema):
             'params': modules[1].parameters(),
             "lr": self.flags['lr_inp']
         }],
-                                  lr=self.flags['lr'])
+                                  lr=self.flags['lr'],
+                                  weight_decay=self.flags['weight_decay'])
 
         self.scheduler = T.optim.lr_scheduler.StepLR(
             self.optim,
-            step_size=1,
+            step_size=self.flags['gamma_step'],
             gamma=self.flags['gamma'],
         )
 
@@ -156,23 +185,26 @@ class PersPredictionSchema(ZoosetTorchSchema):
 
 class PersistenceForPredictionNet(T.nn.Module):
     @staticmethod
-    def _gen_input(shape):
+    def _gen_input(shape, input_values_padding):
         shape0 = (shape[0], np.product(shape[1:]))
-        u = np.random.normal(0, 1, shape0)
+        u = np.random.normal(0 - input_values_padding,
+                             1 + input_values_padding, shape0)
         norm = np.linalg.norm(u, axis=1, keepdims=True)
         return (u / norm).reshape(shape).astype(np.float32)
 
-    def __init__(
-        self,
-        npts,
-        max_dim,
-        dev,
-        limit,
-        use_norm=True,
-        pers='l1',
-        input_space_shape=[128, 1, 32, 32],
-        concat_input_space=True,
-    ):
+    def __init__(self,
+                 npts,
+                 max_dim,
+                 dev,
+                 limit,
+                 use_norm=True,
+                 pers='l1',
+                 input_space_shape=[128, 1, 32, 32],
+                 concat_input_space=True,
+                 input_values_padding=0,
+                 initialization='u',
+                 learnable=True,
+                 flags=None):
         super().__init__()
 
         self.npts = npts
@@ -180,13 +212,29 @@ class PersistenceForPredictionNet(T.nn.Module):
         self.dev = dev
         self.limit = limit
         self.use_norm = use_norm
+        self.learnable = learnable
 
         assert pers in ['l1', 'l2']
         self.pers = pers
 
-        self.input_space = T.nn.Parameter(T.tensor(
-            self._gen_input(input_space_shape)),
-                                          requires_grad=True)
+        if initialization == 'u':
+            tsr = T.tensor(
+                self._gen_input(input_space_shape, input_values_padding))
+        elif initialization.startswith('o'):
+            tsr = T.empty(input_space_shape)
+            T.nn.init.orthogonal_(tsr, gain=float(initialization[1:]))
+        elif initialization.startswith('k'):
+            tsr = T.empty(input_space_shape)
+            mode = dict(i='fan_in', o='fan_out')[initialization[1]]
+            T.nn.init.kaiming_uniform_(tsr, mode=mode, nonlinearity='relu')
+        else:
+            assert False
+
+        if flags['padding_input'] > 0:
+            p = flags['padding_input']
+            tsr = T.nn.functional.pad(tsr, (p, p, p, p), 'constant', 0)
+
+        self.input_space = T.nn.Parameter(tsr, requires_grad=learnable)
 
         self.batch = input_space_shape[0]
         self.concat_input_space = concat_input_space
@@ -257,6 +305,19 @@ class PersistenceForPredictionNet(T.nn.Module):
                             ]), ), ),
                 ]) for x_cnn in x_cnn_batch
             ]
+        # elif self.learnable:
+        #     pers_hom = [
+        #         self._flatcat2([
+        #             self._flatcat([
+        #                 self.input_space,
+        #             ]),
+        #             self._vect(
+        #                 self._pershom(
+        #                     self._flatcat([
+        #                         x_cnn(self.input_space),
+        #                     ]), ), ),
+        #         ]) for x_cnn in x_cnn_batch
+        #     ]
         else:
             pers_hom = [
                 self._vect(

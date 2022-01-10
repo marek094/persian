@@ -18,7 +18,9 @@ class ZoosetTorchSchema(TorchSchema):
             dict(name='batch_size', type=int, default=32),
             dict(name='target', type=str, default='test_accuracy'),
             dict(name='split_seed', type=int, default=2021),
-            dict(name='train_size', type=int, default=0)
+            dict(name='train_size', type=int, default=0),
+            dict(name='dataset_base', type=str, default='cifar10'),
+            dict(name='Step', type=int, default=86),
         ]
 
     def __init__(self, flags={}):
@@ -37,6 +39,8 @@ class ZoosetTorchSchema(TorchSchema):
         self.unsplitted_dataset = ZoosetDataset(
             target_name=self.flags['target'],
             dev=self.dev,
+            dataset_base=self.flags['dataset_base'],
+            training_step=self.flags['Step'],
         )
 
         np.random.seed(self.flags['split_seed'])
@@ -75,14 +79,20 @@ class ZoosetDataset(data.Dataset):
         tgts = [[tgt] for _, tgt in batch]
         return nets, T.tensor(tgts)
 
-    def __init__(self, target_name, dev):
-        self.data_folder = Path() / '../data'
+    def __init__(self,
+                 target_name,
+                 dev,
+                 dataset_base='cifar10',
+                 training_step=None,
+                 folder=Path.home() / 'data'):
+        self.data_folder = folder / 'cnn_zoo' / dataset_base
         assert self.data_folder.exists()
         self.metrics_path = self.data_folder / 'metrics.csv'
         assert self.metrics_path.exists()
-        self.weights_path = self.data_folder / 'weights_step86.npz'
+        self.weights_path = self.data_folder / 'weights.npy'
         assert self.weights_path.exists()
 
+        self.step = training_step
         self.target_name = target_name
         self.dev = dev
 
@@ -98,11 +108,15 @@ class ZoosetDataset(data.Dataset):
 
         metrics = pd.read_csv(self.metrics_path)
 
-        if self.weights_path.suffix == '.npz':
+        if self.weights_path.suffix == '.npz' and self.step == 86:
+            # cached
             weights = np.load(self.weights_path)['arr_0']
             metrics = metrics[metrics.step == 86]
         else:
-            weights = np.load(self.weights_path)
+            metrics['idx'] = metrics.index
+            metrics = metrics[metrics.step == self.step]
+            idx = metrics.idx.to_numpy()
+            weights = np.load(self.weights_path)[idx]
 
         self.weights = weights
         self.metrics = metrics
@@ -130,7 +144,7 @@ class ZoosetDataset(data.Dataset):
 
         zoomodel = TorchCNN(act, use_last_layer=False).set_weight(w)
         zoomodel = zoomodel.to(self.dev)
-        assert step == 86
+        assert step == self.step
 
         self.cache[index] = zoomodel
         return self.cache[index], self.targets[index]
