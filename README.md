@@ -4,13 +4,13 @@ Persian Project
 
 
 ```
-@masterthesis{
-    cerny21, 
-    title={Persistent Homology and Neural Networks}, 
-    school={Charles University, Faculty of Mathematics and Physics},
-    author={\v{C}ern\'{y}, Marek}, 
-    year={2021}
-}
+    @masterthesis{
+        cerny21, 
+        title={Persistent Homology and Neural Networks}, 
+        school={Charles University, Faculty of Mathematics and Physics},
+        author={\v{C}ern\'{y}, Marek}, 
+        year={2021}
+    }
 ```
 
 ---
