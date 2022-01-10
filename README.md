@@ -3,6 +3,7 @@ Persian Project
 ![Persistent analysis](figures/persian_logo.png)
 
 
+This is a source code of the experiments of unpublished thesis "Persistence Homology and Neural Networks," available at https://github.com/marek094/persian. If you involve it in your research, please cite:
 ```
     @masterthesis{
         cerny21, 
