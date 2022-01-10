@@ -1,5 +1,7 @@
 from persian.schemas.torch import TorchSchema
 from persian.errors.flags_incompatible import IncompatibleFlagsError
+from persian.debug import *
+import persian.config as config
 
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, SubsetRandomSampler, Sampler, BatchSampler
@@ -9,9 +11,8 @@ from numpy.random import shuffle
 from typing import List, Iterator
 import copy
 
-DEBUG = True
-if DEBUG:
-    from external.tdd.data import ds_factory_stratified_shuffle_split
+if is_debug():
+    from external.tdd.data import ds_factory_stratified_shuffle_split, ds_factory
 
 
 class DatasetTorchSchema(TorchSchema):
@@ -19,7 +20,7 @@ class DatasetTorchSchema(TorchSchema):
     def list_hparams():
         return TorchSchema.list_hparams() + [
             dict(name='batch_size', type=int, default=128),
-            dict(name='noise', type=int, default=0, range=(0, 30, 10)),
+            dict(name='noise', type=int, default=0),
             dict(name='dataset', type=str, default='cifar10'),
             dict(name='train_size', type=int, default=None),
             dict(name='sub_batches', type=int, default=None),
@@ -93,10 +94,13 @@ class DatasetTorchSchema(TorchSchema):
         dataset_cls = self._dataset_from_name(self.flags['dataset'])
         aug_transforms = self._augmentation_from_name(self.flags['aug'])
         self.dataset_meta = dataset_cls.meta
-        if DEBUG:
-            ds = ds_factory_stratified_shuffle_split(
-                'cifar10_train' if is_train else 'cifar10_test',
-                num_samples=self.flags['train_size'])
+        if is_debug():
+            if is_train:
+                ds = ds_factory_stratified_shuffle_split(
+                    ds_name='cifar10_train',
+                    num_samples=self.flags['train_size'])
+            else:
+                ds = ds_factory(ds_name='cifar10_test')
         else:
             ds = dataset_cls(root='../data',
                              train=is_train,
@@ -109,8 +113,9 @@ class DatasetTorchSchema(TorchSchema):
         batch_size = self.flags['batch_size']
 
         if is_train:
-            noise_size = round(len(ds) * self.flags['noise'] / 100)
-            ds = self._get_dataset_label_noise(ds, noise_size=noise_size)
+            if self.flags['noise'] > 0:
+                noise_size = round(len(ds) * self.flags['noise'] / 100)
+                ds = self._get_dataset_label_noise(ds, noise_size=noise_size)
             shuffle = True
             size_limit = self.flags['train_size']
 
@@ -134,11 +139,15 @@ class DatasetTorchSchema(TorchSchema):
                 sampler = SubsetRandomSampler(range(size_limit))
                 shuffle = None
 
-        self.loaders[set_name] = DataLoader(ds,
-                                            batch_size=batch_size,
-                                            shuffle=shuffle,
-                                            sampler=sampler,
-                                            batch_sampler=batch_sampler)
+        self.loaders[set_name] = DataLoader(
+            ds,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            sampler=sampler,
+            batch_sampler=batch_sampler,
+            num_workers=config.DATASET_NUM_WORKERS,
+            pin_memory=config.DATASET_PIN_MEMORY,
+            prefetch_factor=config.DATASET_PREFETCH)
 
 
 class HomogeneousRandomBatchSampler(Sampler[List[int]]):

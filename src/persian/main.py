@@ -17,7 +17,10 @@ def string_to_arggrid(astr: str) -> Iterator[List[str]]:
     """
     argset = []
     for x in astr.strip().split('\n'):
-        k, *v = x.strip().split(' ', maxsplit=1)
+        x = x.strip()
+        if x == "":
+            continue
+        k, *v = x.split(' ', maxsplit=1)
         if len(v) == 1:
             argset.append([(k, val.strip())
                            for val in v[0].strip().split(';')])

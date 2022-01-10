@@ -1,6 +1,7 @@
 import sys
+import argparse
 from typing import List
-from argparse import ArgumentParser, BooleanOptionalAction
+from argparse import ArgumentParser
 from numpy import arange
 
 if sys.version_info.minor >= 9:
@@ -12,7 +13,6 @@ else:
 class Schemable(Protocol):
     """
     """
-
     @staticmethod
     def list_hparams() -> List[dict]:
         """
@@ -82,7 +82,6 @@ class Schemable(Protocol):
 
 
 class Schema(Schemable):
-
     @staticmethod
     def list_hparams() -> List[dict]:
         return []
@@ -130,10 +129,20 @@ class Schema(Schemable):
             param['help'] = ','.join([
                 f'{d}: {param.pop(d)}' for d in ['range', 'help'] if d in param
             ])
-            if param['type'] == bool:
-                param['action'] = BooleanOptionalAction
             name = param.pop('name', "")
             names = [f'-{shorts[name]}', f'--{name}']
+            if param['type'] == bool:
+                if sys.version_info.minor >= 9:
+                    param['action'] = argparse.BooleanOptionalAction
+                else:
+                    del param['type']
+                    param2 = param.copy()
+                    names2 = [f'--no-{name}']
+                    param2['action'] = 'store_false'
+                    param2['dest'] = name
+                    parser.add_argument(*names2, **param2)
+
+                    param['action'] = 'store_true'
             parser.add_argument(*names, **param)
         return parser
 
@@ -185,14 +194,17 @@ class Schema(Schemable):
         return gen(*lazy)
 
     def metrics_report(self, set_name):
-        return ", ".join(
-            f'{k}: {v:f}' for k, v in self.metrics[set_name].items())
+        return ", ".join(f'{k}: {v:f}'
+                         for k, v in self.metrics[set_name].items())
 
     def __init__(self, flags={}):
         # create flags
         def to_flag(name, type, default, **_):
             if name in flags:
-                return name, type(flags[name])
+                val = flags[name]
+                if val is None or val == 'None':
+                    return name, None
+                return name, type(val)
             return name, default
 
         hparams = self.list_hparams()
