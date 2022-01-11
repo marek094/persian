@@ -41,7 +41,7 @@ $ export PYTHONPATH=src
 ## Data
 
 This section is relevant only to experiments in Chapter 4. Please download data from [Google Research Repository](https://github.com/google-research/google-research/tree/master/dnn_predict_accuracy).
-Create this repository
+Create this folder structure:
 ```bash
 $ cd path/to/this/repo
 $ mkdir -p ../data/cnn_zoo/
