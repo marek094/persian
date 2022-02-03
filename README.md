@@ -14,6 +14,11 @@ This is a source code of the experiments of unpublished thesis "Persistence Homo
     }
 ```
 
+*Note: The definition of monotonous function on pg. 24, fig 2.3 is sketchy, the precise definition follows:*
+<img src='figures/note.png' width=35%>
+
+
+
 ---
 # Persistent Homology and Neural Networks (Thesis Experiments)
 
