@@ -3,13 +3,14 @@ Persian Project
 ![Persistent analysis](figures/persian_logo.png)
 
 
-This is a source code of the experiments of unpublished thesis "Persistence Homology and Neural Networks," available at https://github.com/marek094/persian. If you involve it in your research, please cite:
+This is a source code of the experiments of the thesis "<a href='http://hdl.handle.net/20.500.11956/171867'>Persistence Homology and Neural Networks</a>," available at https://github.com/marek094/persian. If you involve it in your research, please cite:
 ```
     @masterthesis{
         cerny21, 
         title={Persistent Homology and Neural Networks}, 
         school={Charles University, Faculty of Mathematics and Physics},
         author={\v{C}ern\'{y}, Marek}, 
+        note={\href{http://hdl.handle.net/20.500.11956/171867}{handle link}},
         year={2021}
     }
 ```
